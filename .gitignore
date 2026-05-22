@@ -1,0 +1,4 @@
+bin/
+obj/
+references/*.dll
+.history
