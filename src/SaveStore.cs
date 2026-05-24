@@ -19,10 +19,12 @@ namespace CasualtiesUnknown.SaveManager
     {
         private readonly ManualLogSource _log;
         private readonly string _slotsRoot;
+        private static ManualLogSource _staticLog;
 
         internal SaveStore(ManualLogSource log)
         {
             _log = log;
+            _staticLog = log;
             _slotsRoot = ResolveSlotsRoot();
             try { Directory.CreateDirectory(_slotsRoot); }
             catch (Exception ex) { _log.LogWarning($"创建 slots 根目录失败：{ex.Message}"); }
@@ -238,9 +240,8 @@ namespace CasualtiesUnknown.SaveManager
         internal void UpdateSidecar(string slotFullPath, SlotSidecar sidecar) => sidecar.Save(slotFullPath);
 
         /// <summary>
-        /// 找最适合"自动死亡回档"用的槽位：严格限定当前 runId，不跨 run；
-        /// 优先最新自动备份 → 退化最新手动备份；跳过 beforeLoad- 兜底备份。
-        /// 当前 runId 解不出 / 当前 run 下无任何备份返回 null。
+        /// 自动死亡回档用的槽位选择：限定当前 runId 内，优先最新自动备份，没有则返回最新手动备份；
+        /// beforeLoad- 前缀的备份不参与。runId=0 或当前 run 无备份返回 null。
         /// </summary>
         internal SlotInfo FindLatestRollbackTarget()
         {
@@ -253,10 +254,7 @@ namespace CasualtiesUnknown.SaveManager
             return slots.FirstOrDefault(s => !s.Sidecar.IsAuto && NotBeforeLoad(s));
         }
 
-        /// <summary>
-        /// 算当前 save.sv 的 MD5。配合 SlotInfo 上的 Hash 字段，UI 比较两个值即可判断
-        /// "这个槽位的内容跟当前游戏存档相同"——同则隐藏"切换到此存档"按钮。
-        /// </summary>
+        /// <summary>计算 save.sv 的 MD5。SlotInfo 用其判断槽位内容与当前 save.sv 是否相同。</summary>
         internal static string ComputeFileHash(string fullPath)
         {
             try
@@ -275,27 +273,50 @@ namespace CasualtiesUnknown.SaveManager
         }
 
         /// <summary>
-        /// 从 save.sv 解出 runId。单机走 body 内的 "cId"；
-        /// 多人 host 端 KrokoshaMP 把它写到同目录 mp_rules.json 的 SAVEID；
-        /// SAVEID=0 / 字段缺失时 fallback 到 mp_rules.json 中 PLRPOS 第一个 STEAM_xxx 字符串的稳定 hash。
-        /// 失败返回 0。
+        /// 从指定 .sv 解 runId。先 Unzip 取 body 内 "cId"，0 时回落 mp_rules.json 的 SAVEID
+        /// 与 PLRPOS 第一个 STEAM_xxx 的稳定 hash。任何中间失败都打 warning 日志。失败返回 0。
         /// </summary>
         internal static int ReadRunIdFromSv(string fullPath)
         {
+            if (string.IsNullOrEmpty(fullPath))
+            {
+                _staticLog?.LogWarning("ReadRunIdFromSv: 路径为空");
+                return 0;
+            }
+            if (!File.Exists(fullPath))
+            {
+                _staticLog?.LogWarning($"ReadRunIdFromSv: 文件不存在 {fullPath}");
+                return 0;
+            }
             try
             {
-                if (!File.Exists(fullPath)) return 0;
                 byte[] bytes = File.ReadAllBytes(fullPath);
-                if (bytes != null && bytes.Length > 0)
+                if (bytes == null || bytes.Length == 0)
                 {
-                    string json = SaveSystem.Unzip(bytes);
-                    if (!string.IsNullOrEmpty(json))
-                    {
-                        int v = ParseIntField(json, "\"cId\":");
-                        if (v != 0) return v;
-                    }
+                    _staticLog?.LogWarning($"ReadRunIdFromSv: 文件为空 {fullPath}");
+                    return 0;
                 }
-                // 多人 fallback：同目录 mp_rules.json
+                string json;
+                try
+                {
+                    json = SaveSystem.Unzip(bytes);
+                }
+                catch (Exception ex)
+                {
+                    _staticLog?.LogWarning($"ReadRunIdFromSv: Unzip 失败 {fullPath}: {ex.Message}");
+                    json = null;
+                }
+                if (!string.IsNullOrEmpty(json))
+                {
+                    int v = ParseIntField(json, "\"cId\":");
+                    if (v != 0) return v;
+                    _staticLog?.LogInfo($"ReadRunIdFromSv: {Path.GetFileName(fullPath)} body cId=0，尝试 mp_rules.json fallback");
+                }
+                else
+                {
+                    _staticLog?.LogWarning($"ReadRunIdFromSv: {fullPath} Unzip 后 json 为空");
+                }
+
                 string dir = Path.GetDirectoryName(fullPath);
                 string rulesPath = string.IsNullOrEmpty(dir) ? null : Path.Combine(dir, "mp_rules.json");
                 if (rulesPath != null && File.Exists(rulesPath))
@@ -303,7 +324,6 @@ namespace CasualtiesUnknown.SaveManager
                     string rj = File.ReadAllText(rulesPath);
                     int sid = ParseIntField(rj, "\"SAVEID\":");
                     if (sid != 0) return sid;
-                    // 最后兜底：PLRPOS 第一个 STEAM_xxx key 的稳定 hash
                     int idx = rj.IndexOf("STEAM_", StringComparison.Ordinal);
                     if (idx >= 0)
                     {
@@ -315,13 +335,18 @@ namespace CasualtiesUnknown.SaveManager
                             return StableHash(steamId);
                         }
                     }
+                    _staticLog?.LogWarning($"ReadRunIdFromSv: {rulesPath} 无 SAVEID 与 STEAM_xxx，无法解 runId");
                 }
                 return 0;
             }
-            catch { return 0; }
+            catch (Exception ex)
+            {
+                _staticLog?.LogWarning($"ReadRunIdFromSv: 处理 {fullPath} 异常 {ex.Message}");
+                return 0;
+            }
         }
 
-        /// <summary>FNV-1a 32 位 hash，确定性 → 同一字符串永远同一 int。返回非零（0 留给"未识别"语义）。</summary>
+        /// <summary>FNV-1a 32 位 hash；同字符串永远得同 int，结果非零（0 表示"未识别"）。</summary>
         private static int StableHash(string s)
         {
             if (string.IsNullOrEmpty(s)) return 0;
@@ -335,7 +360,7 @@ namespace CasualtiesUnknown.SaveManager
             return v == 0 ? 1 : v;
         }
 
-        /// <summary>纯字符串搜 key 后的整数；找不到 / 解析失败返回 0。避免引入 Newtonsoft。</summary>
+        /// <summary>纯字符串搜 key 后的整数；找不到或解析失败返回 0。</summary>
         private static int ParseIntField(string json, string key)
         {
             int idx = json.IndexOf(key, StringComparison.Ordinal);
@@ -352,8 +377,7 @@ namespace CasualtiesUnknown.SaveManager
 
         internal static int ComputeCurrentRunId()
         {
-            // 优先从内存读 WoundView.view.cInfo[2]：游戏自己在 TryLoadGame / 新开 run 时维护，
-            // 无需解 .sv，对单机/多人/任何 save 格式异常都稳。主菜单 PreGen 时 WoundView 不存在，退化到解 .sv。
+            // 1) 内存：游戏在 TryLoadGame / 新开 run 时维护 WoundView.view.cInfo[2]
             try
             {
                 var view = WoundView.view;
@@ -363,8 +387,32 @@ namespace CasualtiesUnknown.SaveManager
                     if (v != 0) return v;
                 }
             }
-            catch { }
-            return ReadRunIdFromSv(GameSavePath);
+            catch (Exception ex)
+            {
+                _staticLog?.LogWarning($"ComputeCurrentRunId: 读 WoundView.cInfo[2] 异常 {ex.Message}");
+            }
+
+            // 2) 候选 .sv 文件：先单机/多人 save.sv，再 autosave.sv（save.sv 有时 cId=0 但 autosave.sv 已有真值）
+            string p = Application.persistentDataPath;
+            string[] candidates = new[]
+            {
+                Path.Combine(p, "mp_save", "save.sv"),
+                Path.Combine(p, "mp_save", "autosave.sv"),
+                Path.Combine(p, "save.sv"),
+                Path.Combine(p, "autosave.sv"),
+            };
+            foreach (var path in candidates)
+            {
+                if (!File.Exists(path)) continue;
+                int v = ReadRunIdFromSv(path);
+                if (v != 0)
+                {
+                    _staticLog?.LogInfo($"ComputeCurrentRunId: 通过 {Path.GetFileName(path)} 解出 runId={v}");
+                    return v;
+                }
+            }
+            _staticLog?.LogWarning("ComputeCurrentRunId: 所有候选 .sv 都解不出 runId，返回 0");
+            return 0;
         }
 
         /// <summary>当前游戏 save.sv 的 hash；不存在或读失败返回 null。</summary>

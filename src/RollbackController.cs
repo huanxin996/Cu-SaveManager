@@ -34,7 +34,7 @@ namespace CasualtiesUnknown.SaveManager
         private int _lastBroadcastSecond = -1;
         private float _nextMpDeathCheckAt;
 
-        // 死亡判据已生效后才允许再次触发；切换场景后该标志重置避免重复弹
+        // 死亡判据满足后的本生节流标志，每次场景切换重置
         private bool _deathHandledThisLife;
 
         internal RollbackController(HotkeyConfig cfg, SaveStore store, ManualLogSource log)
@@ -45,7 +45,7 @@ namespace CasualtiesUnknown.SaveManager
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
 
-        /// <summary>游戏退出时调，解订事件 + 清理静态接管标志，防止 Quit 路径上残留引用。</summary>
+        /// <summary>解订 SceneManager 事件并复位静态接管标志。</summary>
         internal void Dispose()
         {
             try { SceneManager.sceneLoaded -= OnSceneLoaded; } catch { }
@@ -79,9 +79,10 @@ namespace CasualtiesUnknown.SaveManager
         /// <summary>给 Harmony patch 用的全局态：只要面板在倒计时或正在执行回档，就视为"接管中"。</summary>
         internal static bool IsActiveGlobal { get; private set; }
 
-        /// <summary>给 Harmony patch 用的死亡感知态：从死亡判据满足的第一帧起为 true，
-        /// 比 Counting 状态更早。这段时间用来阻止游戏自身的"全员死亡 → RegenerateWorld / ToMainMenu"
-        /// 在我们倒计时启动前抢先执行。<see cref="GameAutoRespawnGuard"/> 用它做拦截判据。</summary>
+        /// <summary>
+        /// 死亡判据满足后立即变 true，比 RollbackState.Counting 早一帧。
+        /// <see cref="GameAutoRespawnGuard"/> 据此拦截游戏自身的 RegenerateWorld / ToMainMenu。
+        /// </summary>
         internal static bool IsDeathSuspected { get; private set; }
 
         private void SetState(RollbackState s)
@@ -95,7 +96,7 @@ namespace CasualtiesUnknown.SaveManager
         {
             try
             {
-                // 第一时间感知死亡，比 Counting 更早把闸门拉起。AutoRollbackOnDeath 关闭则不接管。
+                // 死亡判据先于倒计时刷新，确保 GameAutoRespawnGuard 抢先一帧。AutoRollbackOnDeath 关时不接管。
                 IsDeathSuspected = _cfg.AutoRollbackOnDeath.Value && IsDying();
                 if (_state == RollbackState.Counting) TickCountdown();
                 else if (_state == RollbackState.Idle) CheckDeathTrigger();
@@ -106,10 +107,11 @@ namespace CasualtiesUnknown.SaveManager
             }
         }
 
-        /// <summary>判定是否处于"死亡过渡帧"。
-        /// 单机：直接读 <see cref="PlayerCameraDeathDetector.LocalDeathLatched"/>，由 Harmony Postfix 在
-        /// 游戏自身 HandleDeathScreen 里更新，零每帧额外判定。
-        /// 多人 host：每 500ms 节流检查一次 DeadPlayerCount，避免每帧反射调用 KrokMP。</summary>
+        /// <summary>
+        /// 判定是否处于死亡过渡帧。
+        /// 单机：读 <see cref="PlayerCameraDeathDetector.LocalDeathLatched"/>。
+        /// 多人 host：节流到 500ms 一次反射 KrokMP DeadPlayerCount。
+        /// </summary>
         private bool IsDying()
         {
             try

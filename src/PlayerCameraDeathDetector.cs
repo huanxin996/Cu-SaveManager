@@ -3,9 +3,9 @@ using HarmonyLib;
 namespace CasualtiesUnknown.SaveManager
 {
     /// <summary>
-    /// 死亡边缘检测：Postfix patch <see cref="PlayerCamera.HandleDeathScreen"/>，靠
-    /// <c>didDeathScreen</c> 的 false→true 边沿驱动事件。
-    /// 游戏每帧已经在 HandleDeathScreen 里判 <c>!body.alive &amp;&amp; blackAmount &gt;= 1f</c> 触发死亡屏，
+    /// Postfix patch <see cref="PlayerCamera.HandleDeathScreen"/>，
+    /// 在 <c>didDeathScreen</c> 由 false 翻成 true 时把 <see cref="LocalDeathLatched"/> 置 true，
+    /// 用作单机死亡判据。
     /// </summary>
     [HarmonyPatch(typeof(PlayerCamera), "HandleDeathScreen")]
     internal static class PlayerCameraDeathDetector

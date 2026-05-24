@@ -9,8 +9,11 @@ using UnityEngine.UI;
 namespace CasualtiesUnknown.SaveManager
 {
     /// <summary>
+    /// 主菜单"存档管理"按钮加载逻辑——仿 KrokoshaCasualtiesMP 多人模组：
     /// 不用 IMGUI，而是 Harmony patch <see cref="PreRunScript.Start"/> 的 Postfix；
     /// 克隆原版 loadButton 的 GameObject，挂到 prerun.transform 下成为真子物体。
+    /// 生命周期：PreRunScript 销毁时按钮自动一起销毁；scene 重载会再次走 Start，再次注入。
+    /// 可见性：直接跟随 PreRunScript 父节点 active 状态，无需自己判断 contentWarning / cover。
     /// </summary>
     internal static class MenuButtonUiInjector
     {
@@ -36,11 +39,15 @@ namespace CasualtiesUnknown.SaveManager
                 _log?.LogWarning($"Harmony PatchAll 失败：{ex.Message}");
             }
 
-            // 多人 mod KrokoshaCasualtiesMP 同时挂 PreRunScript.Start patch + sceneLoaded
+            // KrokoshaCasualtiesMP 同时 patch PreRunScript.Start 与 sceneLoaded，
+            // 这里订阅 sceneLoaded 是兜底，保证场景重载时仍能注入。
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
 
-        /// <summary>游戏退出时调，解订 sceneLoaded 防止退出阶段订阅残留 + UnpatchSelf 移除所有 Harmony patch</summary>
+        /// <summary>
+        /// 解订 sceneLoaded 与 UnpatchSelf 移除所有 Harmony patch，
+        /// 让游戏退出阶段不再触发 mod 反射回调。
+        /// </summary>
         internal static void Dispose()
         {
             try { SceneManager.sceneLoaded -= OnSceneLoaded; } catch { }
@@ -147,7 +154,9 @@ namespace CasualtiesUnknown.SaveManager
         }
 
         /// <summary>
-        /// 销毁克隆按钮里所有"本地化覆盖文字"或"鼠标悬停 tooltip"的 MonoBehaviour 组件。
+        /// 销毁克隆按钮里所有 Localizer / Tooltip 组件。
+        /// UILocalizer 会反复把按钮文字覆盖回原版；UITooltip 会让悬停显示原版"继续前进"提示。
+        /// 类型名通常含 Localizer / Localize / LocaleText / Tooltip 等关键字，反射列举不依赖编译期类型。
         /// </summary>
         private static void DestroyLocalizers(GameObject clone)
         {
@@ -168,6 +177,7 @@ namespace CasualtiesUnknown.SaveManager
 
         /// <summary>
         /// 清理 loadButton 克隆体内的 BiomeIcon 缩略图与 saveTimeText 子节点。
+        /// 留下根节点本身的 Image（按钮背景）与第一个 TMP/Text（按钮文字），其余视觉子元素销毁掉。
         /// </summary>
         private static void CleanupLoadButtonChildren(GameObject clone)
         {
@@ -212,7 +222,7 @@ namespace CasualtiesUnknown.SaveManager
                 first = false;
             }
 
-            // TMP_Text 反射写入：避免对 TMP dll 的编译期依赖
+            // TMP_Text 反射写入
             var allMb = clone.GetComponentsInChildren<MonoBehaviour>(includeInactive: true);
             foreach (var mb in allMb)
             {

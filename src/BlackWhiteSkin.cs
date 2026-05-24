@@ -2,7 +2,10 @@ using UnityEngine;
 
 namespace CasualtiesUnknown.SaveManager
 {
-    
+    /// <summary>
+    /// 黑底白线条风格 GUISkin。在 OnGUI 顶层 push、绘制结束 pop 即可全局生效。
+    /// 不依赖 UnityEngine.TextRenderingModule（IMGUIModule 自带的 GUISkin / GUIStyle 已够用）。
+    /// </summary>
     internal static class BlackWhiteSkin
     {
         private static GUISkin _skin;
@@ -45,12 +48,14 @@ namespace CasualtiesUnknown.SaveManager
             GUI.skin = _previousSkin;
         }
 
+        /// <summary>画一条 1px 横线（用于卡片分隔等场合）。</summary>
         internal static void DrawHLine(Rect rect)
         {
             EnsureBuilt();
             GUI.DrawTexture(rect, _line, ScaleMode.StretchToFill);
         }
 
+        /// <summary>给一个矩形画 1px 白色细边框。</summary>
         internal static void DrawBorder(Rect rect)
         {
             EnsureBuilt();
@@ -61,6 +66,7 @@ namespace CasualtiesUnknown.SaveManager
             GUI.DrawTexture(new Rect(rect.xMax - 1f, rect.y, 1f, rect.height), _line, ScaleMode.StretchToFill);
         }
 
+        /// <summary>给矩形画指定厚度的白色边框。</summary>
         internal static void DrawBorder(Rect rect, float thickness)
         {
             EnsureBuilt();
@@ -70,6 +76,7 @@ namespace CasualtiesUnknown.SaveManager
             GUI.DrawTexture(new Rect(rect.xMax - thickness, rect.y, thickness, rect.height), _line, ScaleMode.StretchToFill);
         }
 
+        /// <summary>用两条对角线在矩形里画一个白色 "X"。</summary>
         internal static void DrawCloseX(Rect rect, float thickness = 2f)
         {
             EnsureBuilt();
@@ -77,6 +84,7 @@ namespace CasualtiesUnknown.SaveManager
             DrawDiagonalLine(rect.x, rect.yMax, rect.xMax, rect.y, thickness);
         }
 
+        /// <summary>在矩形里画一个简化的铅笔图标轮廓（一根斜线 + 两个端点的小线段）。</summary>
         internal static void DrawPencil(Rect rect, float thickness = 2f)
         {
             EnsureBuilt();
@@ -120,7 +128,7 @@ namespace CasualtiesUnknown.SaveManager
             _line = MakeColorTex(255, 255, 255, 255);
 
             _skin = ScriptableObject.CreateInstance<GUISkin>();
-            // 用默认 skin 初始化，避免新建 GUIStyle 缺字段
+            // 用默认 skin 的字段初始化每个 GUIStyle
             CopyDefaultsInto(_skin);
 
             ApplyMonochrome(_skin.box, _bgPanel, Color.white);
@@ -137,7 +145,7 @@ namespace CasualtiesUnknown.SaveManager
             // ScrollView 自身的背景（之前漏改导致顶部出现白色横条）
             ApplyMonochrome(_skin.scrollView, _bgPanel, Color.white);
 
-            // 把滑块条与 thumb 的高度撑开，避免默认 16x16 的小圈飘在文字下
+            // 加大 slider 与 thumb 的尺寸，让圆点不被 20px 字号文字遮住
             _skin.horizontalSlider.fixedHeight = 28f;
             _skin.horizontalSlider.padding = new RectOffset(2, 2, 10, 10);
             _skin.horizontalSliderThumb.fixedHeight = 44f;

@@ -6,8 +6,8 @@ using UnityEngine.UI;
 namespace CasualtiesUnknown.SaveManager
 {
     /// <summary>
-    /// 阻止下层 uGUI 接收点击：遍历当前场景所有 GraphicRaycaster 全部 enabled=false。
-    /// 提供 EnforceBlocked 让调用方每帧调用，防止其他 mod 把 enabled 改回 true。
+    /// 把当前场景所有 GraphicRaycaster.enabled 暂存并设为 false，
+    /// 阻止下层 uGUI 接收点击；提供 EnforceBlocked 每帧重设以抵消其他脚本的复位。
     /// </summary>
     internal static class UiBlocker
     {
@@ -39,7 +39,7 @@ namespace CasualtiesUnknown.SaveManager
             }
         }
 
-        /// <summary>每帧调用：把所有列表中 GR 的 enabled 强制刷成 false，防止被其他 mod 改回去。静默执行。</summary>
+        /// <summary>把列表中所有 GraphicRaycaster.enabled 重设为 false。</summary>
         internal static void EnforceBlocked(ManualLogSource log)
         {
             if (!_isBlocking) return;

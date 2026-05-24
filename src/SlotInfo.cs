@@ -3,8 +3,8 @@ using System.IO;
 namespace CasualtiesUnknown.SaveManager
 {
     /// <summary>
-    /// 给 UI 用的槽位视图模型：物理路径 + 主存档 FileInfo + sidecar 元数据。
-    /// Hash 走懒加载，避免每帧扫描列表都做磁盘 MD5。
+    /// UI 用的槽位视图模型：物理路径 + 主存档 FileInfo + sidecar 元数据。
+    /// Hash 字段懒加载。
     /// </summary>
     internal sealed class SlotInfo
     {

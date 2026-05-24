@@ -4,6 +4,7 @@ using UnityEngine;
 namespace CasualtiesUnknown.SaveManager
 {
     /// <summary>
+    /// 极简 i18n：两套字典（zh-CN / EN），按 Locale.currentLangName 自动选择。
     /// 游戏切换语言时会 LoadScene 重启，所以不需要订阅事件，每次 t() 都按当前值判定。
     /// 找不到 key 返回 key 本身作为可见 fallback。
     /// </summary>
@@ -185,7 +186,7 @@ namespace CasualtiesUnknown.SaveManager
             ["lbl.before_load_alias"] = "Auto backup before restore",
         };
 
-        /// <summary>判定当前语言：游戏 Locale.currentLangName 为 zh-CN 时走中文，否则英文。</summary>
+        /// <summary>当前语言判定：Locale.currentLangName 以 "zh" / "WC" 前缀走中文，否则英文。</summary>
         private static Dictionary<string, string> Current
         {
             get
@@ -209,7 +210,7 @@ namespace CasualtiesUnknown.SaveManager
         internal static string T(string key)
         {
             if (Current.TryGetValue(key, out var v)) return v;
-            // fallback：找不到 key 返回 key 本身，避免 UI 上空白
+            // 找不到 key 时回落到 key 本身做可见占位
             return key;
         }
 

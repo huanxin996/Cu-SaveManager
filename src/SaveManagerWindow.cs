@@ -278,7 +278,7 @@ namespace CasualtiesUnknown.SaveManager
 
         private void DrawSlotsTab()
         {
-            // 顶部固定操作条（不在 ScrollView 内，避免被滚动条挤走）
+            // 顶部固定操作条（在 ScrollView 之外）
             var slots = _store.ListSlots();
             GUILayout.Space(4f);
             GUILayout.BeginHorizontal();

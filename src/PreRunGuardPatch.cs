@@ -4,6 +4,12 @@ using UnityEngine;
 
 namespace CasualtiesUnknown.SaveManager
 {
+    /// <summary>
+    /// Postfix patch <see cref="AdaptiveButton"/>.overlayActive getter：
+    /// <see cref="UiBlocker.IsBlocking"/> 为 true 时强制 __result = true，
+    /// 让主菜单 5 个 AdaptiveButton 跳过自身命中判定；
+    /// 鼠标命中 SaveManager 主菜单按钮矩形时也走相同分支。
+    /// </summary>
     internal static class PreRunGuardLog
     {
         internal static ManualLogSource Log;
@@ -15,7 +21,7 @@ namespace CasualtiesUnknown.SaveManager
         private static void Postfix(ref bool __result)
         {
             if (UiBlocker.IsBlocking) { __result = true; return; }
-            // 防止主菜单 5 个按钮（Play/Quit/Tutorial/Settings/Music）穿透接收点击。
+            // 鼠标在 SaveManager 主菜单按钮矩形内时，让 AdaptiveButton 跳过自身命中判定
             var rt = MenuButtonUiInjector.InjectedRect;
             if (rt == null) return;
             try
@@ -29,6 +35,11 @@ namespace CasualtiesUnknown.SaveManager
         }
     }
 
+    /// <summary>
+    /// Prefix patch <see cref="AdaptiveButton"/>.Clicked()：
+    /// <see cref="UiBlocker.IsBlocking"/> 或鼠标命中 SaveManager 主菜单按钮矩形时 return false。
+    /// 用 TargetMethod 显式定位避免 HarmonyX 名称解析失败。
+    /// </summary>
     [HarmonyPatch]
     internal static class AdaptiveButtonClickedGuard
     {
@@ -65,6 +76,20 @@ namespace CasualtiesUnknown.SaveManager
             }
             catch { }
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Prefix patch <see cref="PlayerCamera"/>.HandleInput：
+    /// <see cref="UiBlocker.IsBlocking"/> 为 true 时 return false，吞掉游戏的 ESC / 移动 / 攻击等输入。
+    /// </summary>
+    [HarmonyPatch(typeof(PlayerCamera), "HandleInput")]
+    internal static class PlayerCameraHandleInputGuard
+    {
+        [HarmonyPrefix]
+        private static bool Prefix()
+        {
+            return !UiBlocker.IsBlocking;
         }
     }
 }

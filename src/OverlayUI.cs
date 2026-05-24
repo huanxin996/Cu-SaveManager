@@ -4,7 +4,9 @@ namespace CasualtiesUnknown.SaveManager
 {
     /// <summary>
     /// 游戏内（按 ESC 暂停时）的 IMGUI 浮动唤起按钮。
+    /// 主菜单按钮不走 IMGUI，已迁移到 <see cref="MenuButtonUiInjector"/>，
     /// 通过 Harmony patch PreRunScript.Start 克隆原版按钮挂到 PreRunScript.transform 下，
+    /// 生命周期与可见性都跟随 PreRunScript 父节点，与多人模组 KrokoshaMainmenuBackground 同款做法。
     /// </summary>
     internal sealed class OverlayUI
     {

@@ -5,10 +5,10 @@ using System.Text;
 namespace CasualtiesUnknown.SaveManager
 {
     /// <summary>
-    /// 槽位伴生元数据。落到 &lt;slot&gt;.sv.json：
+    /// 槽位伴生元数据，落到 &lt;slot&gt;.sv.json：
     /// { "nickname":"…", "pinned":false, "isAuto":true, "biome":3, "runId":12345, "lastPlayedAtUnixMs":… }
-    /// 所有字段都可选，缺失走默认值。手写极简 JSON 序列化，避免引入 Newtonsoft.Json 依赖。
-    /// runId 取自 save.sv 内的 cId 字段，整局 run 中不变；旧版字段名 "seed" 仍兼容读取（迁移路径）。
+    /// 缺失字段走默认值；序列化与解析手写完成。
+    /// runId 取自 save.sv 内的 cId 字段；旧版字段名 "seed" 仍可读取。
     /// </summary>
     internal sealed class SlotSidecar
     {

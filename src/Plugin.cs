@@ -6,7 +6,8 @@ using UnityEngine;
 namespace CasualtiesUnknown.SaveManager
 {
     /// <summary>
-    /// 处理快捷键分发、定时备份调度。
+    /// 协调者：装配 HotkeyConfig / SaveStore / OverlayUI / SaveManagerWindow。
+    /// 处理快捷键分发、定时备份调度。具体能力放在各专职文件里。
     /// </summary>
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
     public sealed class Plugin : BaseUnityPlugin
@@ -52,8 +53,8 @@ namespace CasualtiesUnknown.SaveManager
             PreRunGuardLog.Log = _log;
 
             ResetAutoBackupTimer();
-            // 比 OnApplicationQuit 更早、且不依赖 Plugin 实例存活：进程退出第一时间执行清理，
-            // 保证 Harmony unpatch 在游戏方法被最后调用之前完成，避免 Mono 收尾被反射回调拖住。
+            // 用 Application.quitting 而非 OnApplicationQuit：在 Plugin 实例销毁前触发，可保证
+            // Harmony unpatch 在游戏方法被最后一次调用前完成。
             Application.quitting += OnApplicationQuitting;
             _log.LogInfo($"{PluginName} ready · slots→{_store.SlotsRoot} · save.sv={SaveStore.GameSavePath}");
         }
@@ -78,6 +79,12 @@ namespace CasualtiesUnknown.SaveManager
             {
                 if (_window.Open) _window.ClosePanel();
                 else _window.OpenPanel();
+            }
+            // ESC 关闭主面板。PlayerCameraHandleInputGuard 已 Prefix 吞掉游戏 ESC，
+            // 必须在这里独立处理才能让面板关闭。
+            if (_window.Open && Input.GetKeyDown(KeyCode.Escape))
+            {
+                _window.ClosePanel();
             }
             if (HotkeyConfig.TriggeredThisFrame(_cfg.ToggleSettingsHotkey))
             {
@@ -131,8 +138,8 @@ namespace CasualtiesUnknown.SaveManager
             try
             {
                 if (PlayerCamera.main == null || WorldGeneration.world == null) return;
-                // 必须先让游戏把当前内存里的物品 / 装备 / 状态写到磁盘 save.sv，
-                // 否则我们复制到槽位的只是上一次进层时的旧快照——回档会丢身上的物品。
+                // 先调 SaveSystem.SaveGame 让游戏把内存里的物品 / 装备 / 状态写到 save.sv，
+                // 否则槽位拷的是上一次进层的旧快照，回档会丢身上的物品。
                 GameSaveBridge.TrySaveGame(_log);
                 string path = _store.AutoBackup(_cfg.AutoBackupKeep.Value);
                 _log.LogInfo(I18n.F("fmt.auto_backup_done", System.IO.Path.GetFileName(path)));
