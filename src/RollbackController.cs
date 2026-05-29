@@ -234,6 +234,7 @@ namespace CasualtiesUnknown.SaveManager
             SetState(RollbackState.Executing);
             try
             {
+                _log?.LogInfo(SaveStore.DescribeSavePathDecision());
                 File.Copy(_target.FullSlotPath, SaveStore.GameSavePath, overwrite: true);
                 SaveSystem.loadedRun = true;
                 QolBridge.PrepareRollback(_target.Sidecar, _log);

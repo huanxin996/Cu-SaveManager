@@ -21,6 +21,10 @@ namespace CasualtiesUnknown.SaveManager
             ["tab.rollback"] = "回档",
             // 状态条
             ["status.save_path"] = "save.sv 路径：{0}",
+            // 模式 / 诊断
+            ["mode.singleplayer"] = "单机",
+            ["mode.multiplayer"] = "多人会话",
+            ["fmt.save_path_diag"] = "[SaveManager] 存档路径决策：模式={0}，选定={1}，mp_save 存在={2}，单机 save.sv 存在={3}",
             // 设置：立即保存
             ["sec.save_now"] = "立即保存",
             ["lbl.alias_optional"] = "别名（可选）：",
@@ -112,6 +116,9 @@ namespace CasualtiesUnknown.SaveManager
             ["tab.slots"] = "Slots",
             ["tab.rollback"] = "Rollback",
             ["status.save_path"] = "save.sv path: {0}",
+            ["mode.singleplayer"] = "singleplayer",
+            ["mode.multiplayer"] = "multiplayer session",
+            ["fmt.save_path_diag"] = "[SaveManager] save path decision: mode={0}, chosen={1}, mp_save exists={2}, vanilla save.sv exists={3}",
             ["sec.save_now"] = "Save Now",
             ["lbl.alias_optional"] = "Alias (optional):",
             ["btn.save_now"] = "Save Now",

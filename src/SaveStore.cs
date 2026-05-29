@@ -32,19 +32,25 @@ namespace CasualtiesUnknown.SaveManager
 
         internal string SlotsRoot => _slotsRoot;
 
-        /// <summary>
-        /// 当前游戏 save.sv 的真实路径。多人 mod KrokoshaCasualtiesMP 用 Harmony Transpiler
-        /// 把 SaveSystem.SaveGame 里的 Application.persistentDataPath 替换成 mp_save 子目录，
-        /// 所以多人模式下真正的 save.sv 在 &lt;persistentDataPath&gt;/mp_save/save.sv。优先用它。
-        /// </summary>
+        /// <summary>当前游戏 save.sv 的真实路径：与 KrokMP 一致，仅多人会话运行中且 mp 存档存在时用 mp_save，否则用单机路径。</summary>
         internal static string GameSavePath
         {
             get
             {
                 string mp = Path.Combine(Application.persistentDataPath, "mp_save", "save.sv");
-                if (File.Exists(mp)) return mp;
+                if (MultiplayerBridge.IsMultiplayerRunning(_staticLog) && File.Exists(mp)) return mp;
                 return Path.Combine(Application.persistentDataPath, "save.sv");
             }
+        }
+
+        /// <summary>save.sv 路径决策诊断：当前模式 + mp/单机候选存在性 + 最终选定路径。</summary>
+        internal static string DescribeSavePathDecision()
+        {
+            bool mpRunning = MultiplayerBridge.IsMultiplayerRunning(_staticLog);
+            string mp = Path.Combine(Application.persistentDataPath, "mp_save", "save.sv");
+            string vanilla = Path.Combine(Application.persistentDataPath, "save.sv");
+            string mode = mpRunning ? I18n.T("mode.multiplayer") : I18n.T("mode.singleplayer");
+            return I18n.F("fmt.save_path_diag", mode, GameSavePath, File.Exists(mp), File.Exists(vanilla));
         }
 
         // —— 写 —— //
@@ -207,6 +213,7 @@ namespace CasualtiesUnknown.SaveManager
                 throw new FileNotFoundException("槽位文件不存在", slotFullPath);
             }
             string game = GameSavePath;
+            _log.LogInfo(DescribeSavePathDecision());
             if (backupBefore && File.Exists(game))
             {
                 var ctx = SnapshotGameContext();

@@ -33,6 +33,8 @@ namespace CasualtiesUnknown.SaveManager
         private void Awake()
         {
             _log = Logger;
+            gameObject.hideFlags = HideFlags.HideAndDontSave;
+            UnityEngine.Object.DontDestroyOnLoad(gameObject);
             _cfg = new HotkeyConfig(Config);
             _store = new SaveStore(_log);
             _rollback = new RollbackController(_cfg, _store, _log);
