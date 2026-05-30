@@ -26,6 +26,17 @@ namespace CasualtiesUnknown.SaveManager
         internal ConfigEntry<int> MultiplayerDeathThreshold { get; }
         internal ConfigEntry<int> RecentSlotsLimit { get; }
 
+        // —— 固定世界 —— //
+        internal ConfigEntry<string> PreferredEngine { get; }
+        internal ConfigEntry<string> SeedInput { get; }
+        internal ConfigEntry<string> PositionMode { get; }
+        internal ConfigEntry<float> FixedX { get; }
+        internal ConfigEntry<float> FixedY { get; }
+
+        // —— 杂项 —— //
+        internal ConfigEntry<bool> ShowLogInConsole { get; }
+        internal ConfigEntry<bool> AcceptUpdateNotice { get; }
+
         internal HotkeyConfig(ConfigFile config)
         {
             ToggleSettingsHotkey = config.Bind("Hotkeys", "ToggleSettingsHotkey", Unbound,
@@ -55,6 +66,20 @@ namespace CasualtiesUnknown.SaveManager
             RecentSlotsLimit = config.Bind("Rollback", "RecentSlotsLimit", 20,
                 new ConfigDescription("回档 tab 默认显示的最近槽位条数（不含日期筛选）。",
                     new AcceptableValueRange<int>(5, 100)));
+
+            PreferredEngine = config.Bind("World", "PreferredEngine", "qol",
+                "固定世界生成引擎偏好：qol=优先用 QoL（不在场则回落 self）；self=用本 mod 自身引擎并暂时禁用 QoL。");
+            SeedInput = config.Bind("World", "SeedInput", "",
+                "自身引擎种子。留空时从存档字节自动派生（FNV-1a）；填数字或文本则按手动种子。仅 self 引擎生效。");
+            PositionMode = config.Bind("World", "PositionMode", "lastPos",
+                "读档/回档后的玩家位置模式：lastPos=回保存时坐标；fixedPos=回 FixedX/FixedY。");
+            FixedX = config.Bind("World", "FixedX", 0f, "fixedPos 模式下的世界 X 坐标。");
+            FixedY = config.Bind("World", "FixedY", 0f, "fixedPos 模式下的世界 Y 坐标。");
+
+            ShowLogInConsole = config.Bind("Misc", "ShowInConsole", false,
+                "是否把模组日志同步打印到游戏内控制台（` 键打开）。关闭时仅写入 BepInEx 日志。");
+            AcceptUpdateNotice = config.Bind("Misc", "AcceptUpdateNotice", true,
+                "是否在启动时检查 GitHub 新版本并在游戏内提示。关闭则不检测不提示。");
         }
 
         internal static bool IsBound(KeyboardShortcut sc) => sc.MainKey != KeyCode.None;

@@ -1,4 +1,3 @@
-using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
 
@@ -10,11 +9,6 @@ namespace CasualtiesUnknown.SaveManager
     /// 让主菜单 5 个 AdaptiveButton 跳过自身命中判定；
     /// 鼠标命中 SaveManager 主菜单按钮矩形时也走相同分支。
     /// </summary>
-    internal static class PreRunGuardLog
-    {
-        internal static ManualLogSource Log;
-    }
-
     [HarmonyPatch(typeof(AdaptiveButton), "overlayActive", MethodType.Getter)]
     internal static class AdaptiveButtonOverlayActiveGuard
     {
@@ -52,7 +46,7 @@ namespace CasualtiesUnknown.SaveManager
             if (m != null && !_patchLogged)
             {
                 _patchLogged = true;
-                PreRunGuardLog.Log?.LogInfo("[SaveManager] AdaptiveButtonClickedGuard.TargetMethod 命中 AdaptiveButton.Clicked");
+                ModLog.Info("AdaptiveButtonClickedGuard.TargetMethod 命中 AdaptiveButton.Clicked");
             }
             return m;
         }
@@ -69,7 +63,7 @@ namespace CasualtiesUnknown.SaveManager
                     if (!_logged)
                     {
                         _logged = true;
-                        PreRunGuardLog.Log?.LogInfo("[SaveManager] AdaptiveButtonClickedGuard 首次拦截穿透点击");
+                        ModLog.Info("AdaptiveButtonClickedGuard 首次拦截穿透点击");
                     }
                     return false;
                 }

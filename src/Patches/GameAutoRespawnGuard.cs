@@ -3,7 +3,7 @@ using HarmonyLib;
 namespace CasualtiesUnknown.SaveManager
 {
     /// <summary>
-    /// 死亡回档"接管中"或"死亡感知中"时阻断游戏自带的"全员死亡 → 自动重生世界 / 自动回主菜单"流程。
+    /// 死亡回档处理中或死亡感知中时阻断游戏自带的"全员死亡 → 自动重生世界 / 自动回主菜单"流程。
     /// 单机正常死亡场景由游戏自身 HandleDeathScreen 处理，不会走这两个方法；
     /// 多人 host 端会在 ServerMain.AutoExitWhenAllDied 触发 ToMainMenu，DrillPod / WorldGenerationContinueRunPatch
     /// 也会触发 RegenerateWorld。
@@ -23,6 +23,7 @@ namespace CasualtiesUnknown.SaveManager
     {
         private static bool Prefix()
         {
+            if (MpRollbackController.ReturningToMenu) return true;
             return !(RollbackController.IsActiveGlobal || RollbackController.IsDeathSuspected);
         }
     }

@@ -1,5 +1,4 @@
 using System;
-using BepInEx.Logging;
 
 namespace CasualtiesUnknown.SaveManager
 {
@@ -10,7 +9,7 @@ namespace CasualtiesUnknown.SaveManager
     internal static class GameSaveBridge
     {
         /// <returns>true 表示真的调了游戏 SaveGame，false 表示被检查拦下了。</returns>
-        internal static bool TrySaveGame(ManualLogSource log)
+        internal static bool TrySaveGame()
         {
             try
             {
@@ -22,7 +21,7 @@ namespace CasualtiesUnknown.SaveManager
             }
             catch (Exception ex)
             {
-                log.LogWarning($"调用游戏 SaveGame() 失败：{ex.Message}");
+                ModLog.Warning($"调用游戏 SaveGame() 失败：{ex.Message}");
                 return false;
             }
         }

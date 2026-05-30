@@ -1,6 +1,5 @@
 using System;
 using System.Reflection;
-using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -19,24 +18,23 @@ namespace CasualtiesUnknown.SaveManager
     {
         private const string InjectedName = "SaveManager_MenuButton";
 
-        private static ManualLogSource _log;
         private static Action _onClick;
         private static Harmony _harmony;
         /// <summary>注入后的按钮 RectTransform；patch AdaptiveButton.overlayActive 时用来判断鼠标是否在按钮上以阻穿透。</summary>
         internal static RectTransform InjectedRect;
 
-        internal static void Setup(ManualLogSource log, Action onClick)
+        internal static void Setup(Action onClick)
         {
-            _log = log;
             _onClick = onClick;
             try
             {
                 _harmony = new Harmony("com.casualtiesUnknown.saveManager.menuButton");
                 _harmony.PatchAll(typeof(MenuButtonUiInjector).Assembly);
+                SeededWorldPatcher.TryPatch(_harmony);
             }
             catch (Exception ex)
             {
-                _log?.LogWarning($"Harmony PatchAll 失败：{ex.Message}");
+                ModLog.Warning($"Harmony PatchAll 失败：{ex.Message}");
             }
 
             // KrokoshaCasualtiesMP 同时 patch PreRunScript.Start 与 sceneLoaded，
@@ -60,7 +58,7 @@ namespace CasualtiesUnknown.SaveManager
             if (scene.name != "PreGen") return;
             if (PreRunScript.instance == null) return;
             try { InjectOnce(PreRunScript.instance); }
-            catch (Exception ex) { _log?.LogWarning($"sceneLoaded 注入失败：{ex.Message}"); }
+            catch (Exception ex) { ModLog.Warning($"sceneLoaded 注入失败：{ex.Message}"); }
         }
 
         /// <summary>由 <see cref="PreRunScriptStartPatch"/> 在 PreRunScript.Start 完成后调用。</summary>
@@ -72,7 +70,7 @@ namespace CasualtiesUnknown.SaveManager
             }
             catch (Exception ex)
             {
-                _log?.LogWarning($"主菜单按钮注入失败：{ex.Message}");
+                ModLog.Warning($"主菜单按钮注入失败：{ex.Message}");
             }
         }
 
@@ -80,7 +78,7 @@ namespace CasualtiesUnknown.SaveManager
         {
             if (pre == null || pre.loadButton == null)
             {
-                _log?.LogWarning("PreRunScript / loadButton 为空，跳过注入。");
+                ModLog.Warning("PreRunScript / loadButton 为空，跳过注入。");
                 return;
             }
 
@@ -144,13 +142,13 @@ namespace CasualtiesUnknown.SaveManager
             clone.transform.SetAsLastSibling();
             InjectedRect = rt;
 
-            _log?.LogInfo($"[SaveManager] 主菜单按钮已注入：parent={parent.name} sibling={clone.transform.GetSiblingIndex()}");
+            ModLog.Info($"主菜单按钮已注入：parent={parent.name} sibling={clone.transform.GetSiblingIndex()}");
         }
 
         private static void InvokeOnClick()
         {
             try { _onClick?.Invoke(); }
-            catch (Exception ex) { _log?.LogWarning($"存档管理按钮点击异常：{ex.Message}"); }
+            catch (Exception ex) { ModLog.Warning($"存档管理按钮点击异常：{ex.Message}"); }
         }
 
         /// <summary>

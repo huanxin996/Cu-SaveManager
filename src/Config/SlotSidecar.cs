@@ -29,6 +29,15 @@ namespace CasualtiesUnknown.SaveManager
         internal string QolSeedInput { get; set; } = "";
         internal bool HasPlayerPos { get; set; }
 
+        // —— 固定世界 / 位置模式 ——
+        //    WorldEngine: "qol" | "self"，标识该存档世界由哪套引擎生成，两套不可互转。
+        //    PosMode: "lastPos"（回保存时坐标）| "fixedPos"（回 FixedX/FixedY）。
+        internal string WorldEngine { get; set; } = "";
+        internal string PosMode { get; set; } = "";
+        internal float FixedX { get; set; }
+        internal float FixedY { get; set; }
+        internal bool IsMultiplayer { get; set; }
+
         internal static SlotSidecar LoadOrEmpty(string slotPath)
         {
             try
@@ -83,7 +92,12 @@ namespace CasualtiesUnknown.SaveManager
             sb.Append("\"playerX\":").Append(PlayerX.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
             sb.Append("\"playerY\":").Append(PlayerY.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
             sb.Append("\"qolSeed\":").Append(QolSeed.ToString()).Append(',');
-            sb.Append("\"qolSeedInput\":").Append(EscapeJsonString(QolSeedInput));
+            sb.Append("\"qolSeedInput\":").Append(EscapeJsonString(QolSeedInput)).Append(',');
+            sb.Append("\"worldEngine\":").Append(EscapeJsonString(WorldEngine)).Append(',');
+            sb.Append("\"posMode\":").Append(EscapeJsonString(PosMode)).Append(',');
+            sb.Append("\"fixedX\":").Append(FixedX.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
+            sb.Append("\"fixedY\":").Append(FixedY.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
+            sb.Append("\"isMultiplayer\":").Append(IsMultiplayer ? "true" : "false");
             sb.Append('}');
             return sb.ToString();
         }
@@ -106,6 +120,11 @@ namespace CasualtiesUnknown.SaveManager
             s.PlayerY = ReadFloat(text, "playerY");
             s.QolSeed = ReadInt(text, "qolSeed");
             s.QolSeedInput = ReadString(text, "qolSeedInput") ?? "";
+            s.WorldEngine = ReadString(text, "worldEngine") ?? "";
+            s.PosMode = ReadString(text, "posMode") ?? "";
+            s.FixedX = ReadFloat(text, "fixedX");
+            s.FixedY = ReadFloat(text, "fixedY");
+            s.IsMultiplayer = ReadBool(text, "isMultiplayer");
             return s;
         }
 

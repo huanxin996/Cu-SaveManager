@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using BepInEx;
-using BepInEx.Logging;
 using UnityEngine;
 
 namespace CasualtiesUnknown.SaveManager
@@ -17,40 +16,43 @@ namespace CasualtiesUnknown.SaveManager
     /// </summary>
     internal sealed class SaveStore
     {
-        private readonly ManualLogSource _log;
         private readonly string _slotsRoot;
-        private static ManualLogSource _staticLog;
 
-        internal SaveStore(ManualLogSource log)
+        internal SaveStore()
         {
-            _log = log;
-            _staticLog = log;
             _slotsRoot = ResolveSlotsRoot();
             try { Directory.CreateDirectory(_slotsRoot); }
-            catch (Exception ex) { _log.LogWarning($"创建 slots 根目录失败：{ex.Message}"); }
+            catch (Exception ex) { ModLog.Warning($"创建 slots 根目录失败：{ex.Message}"); }
         }
 
         internal string SlotsRoot => _slotsRoot;
 
-        /// <summary>当前游戏 save.sv 的真实路径：与 KrokMP 一致，仅多人会话运行中且 mp 存档存在时用 mp_save，否则用单机路径。</summary>
-        internal static string GameSavePath
-        {
-            get
-            {
-                string mp = Path.Combine(Application.persistentDataPath, "mp_save", "save.sv");
-                if (MultiplayerBridge.IsMultiplayerRunning(_staticLog) && File.Exists(mp)) return mp;
-                return Path.Combine(Application.persistentDataPath, "save.sv");
-            }
-        }
+        /// <summary>单机 save.sv 路径。多人存档是目录（见 MpSaveLocator），不走此属性。</summary>
+        internal static string GameSavePath => MpSaveLocator.VanillaSavePath;
 
-        /// <summary>save.sv 路径决策诊断：当前模式 + mp/单机候选存在性 + 最终选定路径。</summary>
+        /// <summary>当前游戏存档用于显示的路径：多人会话返回 mp_save 目录，否则单机 save.sv。</summary>
+        internal static string CurrentSaveDisplayPath
+            => MpSaveLocator.IsMultiplayerSaveActive() ? MpSaveLocator.MpSaveDir : MpSaveLocator.VanillaSavePath;
+
+        /// <summary>当前是否处于多人上下文（供 UI 文案判定）。</summary>
+        internal static bool IsMultiplayerContextActive() => MpSaveLocator.IsMultiplayerSaveActive();
+
+        /// <summary>当前是否存在有效游戏存档：多人看 mp_save，单机看 save.sv。</summary>
+        internal static bool CurrentSaveExists()
+            => MpSaveLocator.IsMultiplayerSaveActive() || File.Exists(MpSaveLocator.VanillaSavePath);
+
+        /// <summary>存档路径决策诊断：当前模式 + 多人判定分项（running/context/mp_save）+ 选定路径。</summary>
         internal static string DescribeSavePathDecision()
         {
-            bool mpRunning = MultiplayerBridge.IsMultiplayerRunning(_staticLog);
-            string mp = Path.Combine(Application.persistentDataPath, "mp_save", "save.sv");
-            string vanilla = Path.Combine(Application.persistentDataPath, "save.sv");
-            string mode = mpRunning ? I18n.T("mode.multiplayer") : I18n.T("mode.singleplayer");
-            return I18n.F("fmt.save_path_diag", mode, GameSavePath, File.Exists(mp), File.Exists(vanilla));
+            bool mpRunning = MultiplayerBridge.IsMultiplayerRunning();
+            bool mpEnabled = MultiplayerBridge.IsMultiplayerEnabled();
+            bool mpModPresent = MultiplayerBridge.IsModPresent();
+            bool mpSave = MpSaveLocator.HasMpSave();
+            string vanilla = MpSaveLocator.VanillaSavePath;
+            string mode = mpEnabled ? I18n.T("mode.multiplayer") : I18n.T("mode.singleplayer");
+            string chosen = MpSaveLocator.IsMultiplayerSaveActive() ? MpSaveLocator.MpSaveDir : vanilla;
+            return I18n.F("fmt.save_path_diag", mode, chosen, mpSave, File.Exists(vanilla))
+                + $" [modPresent={mpModPresent} enabled={mpEnabled} running={mpRunning}]";
         }
 
         // —— 写 —— //
@@ -60,20 +62,7 @@ namespace CasualtiesUnknown.SaveManager
         {
             var ctx = SnapshotGameContext();
             string path = WriteSlotFile(ctx, isAuto: false);
-            new SlotSidecar
-            {
-                Nickname = nickname ?? "",
-                Pinned = false,
-                IsAuto = false,
-                Biome = ctx.Biome,
-                RunId = ctx.RunId,
-                LastPlayedAtUnixMs = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                HasPlayerPos = ctx.HasPlayerPos,
-                PlayerX = ctx.PlayerX,
-                PlayerY = ctx.PlayerY,
-                QolSeed = ctx.QolSeed,
-                QolSeedInput = ctx.QolSeedInput,
-            }.Save(path);
+            BuildSidecar(ctx, nickname ?? "", isAuto: false).Save(path);
             return path;
         }
 
@@ -82,20 +71,7 @@ namespace CasualtiesUnknown.SaveManager
         {
             var ctx = SnapshotGameContext();
             string path = WriteSlotFile(ctx, isAuto: true);
-            new SlotSidecar
-            {
-                Nickname = "",
-                Pinned = false,
-                IsAuto = true,
-                Biome = ctx.Biome,
-                RunId = ctx.RunId,
-                LastPlayedAtUnixMs = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                HasPlayerPos = ctx.HasPlayerPos,
-                PlayerX = ctx.PlayerX,
-                PlayerY = ctx.PlayerY,
-                QolSeed = ctx.QolSeed,
-                QolSeedInput = ctx.QolSeedInput,
-            }.Save(path);
+            BuildSidecar(ctx, "", isAuto: true).Save(path);
             PruneAutoBackups(keep);
             return path;
         }
@@ -130,12 +106,12 @@ namespace CasualtiesUnknown.SaveManager
             }
             catch (Exception ex)
             {
-                _log.LogWarning($"扫描 slots 失败：{ex.Message}");
+                ModLog.Warning($"扫描 slots 失败：{ex.Message}");
             }
             // 迁移影响：path 已变，重新拼一次返回最新视图
             if (migrated.Count > 0)
             {
-                _log.LogInfo($"为 {migrated.Count} 个旧槽位迁移目录到 runId 分组");
+                ModLog.Info($"为 {migrated.Count} 个旧槽位迁移目录到 runId 分组");
             }
             // 用 sidecar.LastPlayedAtUnixMs（保存时刻）排序，比 File.LastWriteTimeUtc 稳定——
             // 后者会在迁移 / 复制时被改写，导致排序错乱。
@@ -195,7 +171,7 @@ namespace CasualtiesUnknown.SaveManager
             }
             catch (Exception ex)
             {
-                _log.LogWarning($"迁移槽位失败 {fi.FullName} → runId={runId}: {ex.Message}");
+                ModLog.Warning($"迁移槽位失败 {fi.FullName} → runId={runId}: {ex.Message}");
                 result.Add(new SlotInfo(fi, sidecar, dateFolder, topFolder));
             }
         }
@@ -205,37 +181,199 @@ namespace CasualtiesUnknown.SaveManager
 
         // —— 改 —— //
 
-        /// <summary>把指定槽位文件覆盖回 save.sv。可选先备份当前 save.sv 到今天目录。</summary>
+        /// <summary>把指定槽位还原到游戏存档。单机覆盖 save.sv；多人解包回 mp_save 并由主机重新发起加载。</summary>
         internal void RestoreSlotToSave(string slotFullPath, bool backupBefore)
         {
             if (!File.Exists(slotFullPath))
             {
                 throw new FileNotFoundException("槽位文件不存在", slotFullPath);
             }
+            ModLog.Info(DescribeSavePathDecision());
+            var sidecar = SlotSidecar.LoadOrEmpty(slotFullPath);
+            bool mpRunning = MultiplayerBridge.IsMultiplayerRunning();
+
+            if (sidecar.IsMultiplayer)
+            {
+                if (!mpRunning)
+                {
+                    ModLog.Warning(I18n.T("mp.slot_needs_mp_session"));
+                    throw new InvalidOperationException(I18n.T("mp.slot_needs_mp_session"));
+                }
+                RestoreMultiplayerSlot(slotFullPath, backupBefore);
+                return;
+            }
+            if (mpRunning)
+            {
+                ModLog.Warning(I18n.T("mp.slot_is_singleplayer"));
+                throw new InvalidOperationException(I18n.T("mp.slot_is_singleplayer"));
+            }
+
             string game = GameSavePath;
-            _log.LogInfo(DescribeSavePathDecision());
             if (backupBefore && File.Exists(game))
             {
                 var ctx = SnapshotGameContext();
                 string bakPath = WriteSlotFile(ctx, isAuto: false, prefix: "beforeLoad-");
-                new SlotSidecar
-                {
-                    Nickname = I18n.T("lbl.before_load_alias"),
-                    Pinned = false,
-                    IsAuto = false,
-                    Biome = ctx.Biome,
-                    RunId = ctx.RunId,
-                    LastPlayedAtUnixMs = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    HasPlayerPos = ctx.HasPlayerPos,
-                    PlayerX = ctx.PlayerX,
-                    PlayerY = ctx.PlayerY,
-                    QolSeed = ctx.QolSeed,
-                    QolSeedInput = ctx.QolSeedInput,
-                }.Save(bakPath);
+                var bak = BuildSidecar(ctx, I18n.T("lbl.before_load_alias"), isAuto: false);
+                bak.Save(bakPath);
             }
             File.Copy(slotFullPath, game, overwrite: true);
-            // 让 QoL（如果在场）下次读档时把玩家位置 + 种子还原；不影响游戏自身原有行为
-            QolBridge.PrepareRollback(SlotSidecar.LoadOrEmpty(slotFullPath), _log);
+            PrepareWorldForSlot(sidecar);
+        }
+
+        /// <summary>多人槽位还原：仅主机可执行——可选备份当前 mp_save，解包目标 zip 回 mp_save，再触发主机重新加载。</summary>
+        private void RestoreMultiplayerSlot(string slotFullPath, bool backupBefore)
+        {
+            if (MultiplayerBridge.IsMultiplayerRunning() && !MultiplayerBridge.IsServer())
+            {
+                ModLog.Warning(I18n.T("mp.only_host_can_rollback"));
+                throw new InvalidOperationException(I18n.T("mp.only_host_can_rollback"));
+            }
+            if (backupBefore && MpSaveLocator.HasMpSave())
+            {
+                var ctx = SnapshotGameContext();
+                string bakPath = WriteSlotFile(ctx, isAuto: false, prefix: "beforeLoad-");
+                BuildSidecar(ctx, I18n.T("lbl.before_load_alias"), isAuto: false).Save(bakPath);
+            }
+            MpSaveLocator.RestoreMpSaveFrom(slotFullPath);
+            var sidecar = SlotSidecar.LoadOrEmpty(slotFullPath);
+            WorldEngineArbiter.Apply(WorldEngine.Self, sidecar.QolSeed, sidecar.QolSeedInput);
+            var plrPos = ReadPlrPosFromMpRules();
+            if (plrPos.Count > 0)
+            {
+                MpPositionRestorer.SetPending(plrPos);
+                ModLog.Info($"多人回档：已缓存 {plrPos.Count} 名玩家的存档位置，待世界生成后写回");
+            }
+            MpRollbackController.TriggerHostReload();
+        }
+
+        /// <summary>从还原后的 mp_rules.json 读 PLRPOS（persistentId -> 坐标）。KrokMP 存了但加载不用，由本模组写回。</summary>
+        private static Dictionary<string, Vector2> ReadPlrPosFromMpRules()
+        {
+            var result = new Dictionary<string, Vector2>();
+            try
+            {
+                if (!File.Exists(MpSaveLocator.MpRulesPath)) return result;
+                string json = File.ReadAllText(MpSaveLocator.MpRulesPath);
+                int key = json.IndexOf("\"PLRPOS\"", StringComparison.Ordinal);
+                if (key < 0) return result;
+                int open = json.IndexOf('{', key);
+                if (open < 0) return result;
+                int depth = 0, end = -1;
+                for (int i = open; i < json.Length; i++)
+                {
+                    if (json[i] == '{') depth++;
+                    else if (json[i] == '}') { depth--; if (depth == 0) { end = i; break; } }
+                }
+                if (end < 0) return result;
+                string body = json.Substring(open + 1, end - open - 1);
+                int p = 0;
+                while (p < body.Length)
+                {
+                    int q1 = body.IndexOf('"', p);
+                    if (q1 < 0) break;
+                    int q2 = body.IndexOf('"', q1 + 1);
+                    if (q2 < 0) break;
+                    string pid = body.Substring(q1 + 1, q2 - q1 - 1);
+                    int sub = body.IndexOf('{', q2);
+                    if (sub < 0) break;
+                    int subEnd = body.IndexOf('}', sub);
+                    if (subEnd < 0) break;
+                    string inner = body.Substring(sub + 1, subEnd - sub - 1);
+                    float x = ParseTupleField(inner, "Item1");
+                    float y = ParseTupleField(inner, "Item2");
+                    result[pid] = new Vector2(x, y);
+                    p = subEnd + 1;
+                }
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warning($"ReadPlrPosFromMpRules 失败：{ex.Message}");
+            }
+            return result;
+        }
+
+        private static float ParseTupleField(string inner, string field)
+        {
+            int k = inner.IndexOf("\"" + field + "\"", StringComparison.Ordinal);
+            if (k < 0) return 0f;
+            int colon = inner.IndexOf(':', k);
+            if (colon < 0) return 0f;
+            int s = colon + 1;
+            while (s < inner.Length && (inner[s] == ' ' || inner[s] == '\t')) s++;
+            int e = s;
+            while (e < inner.Length && (char.IsDigit(inner[e]) || inner[e] == '-' || inner[e] == '.' || inner[e] == 'e' || inner[e] == 'E' || inner[e] == '+')) e++;
+            if (e == s) return 0f;
+            float.TryParse(inner.Substring(s, e - s),
+                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v);
+            return v;
+        }
+
+        /// <summary>是否按多人存档处理本次备份/还原：真在多人会话且 mp_save 已生成。决定打包 zip 与 sidecar.IsMultiplayer 标记。</summary>
+        private static bool ShouldUseMpSave()
+            => MultiplayerBridge.IsMultiplayerRunning() && MpSaveLocator.HasMpSave();
+
+        /// <summary>统一构造 sidecar：填入上下文 + 默认位置模式（lastPos，FixedXY=当前坐标）。</summary>
+        private static SlotSidecar BuildSidecar(GameContext ctx, string nickname, bool isAuto)
+        {
+            return new SlotSidecar
+            {
+                Nickname = nickname ?? "",
+                Pinned = false,
+                IsAuto = isAuto,
+                Biome = ctx.Biome,
+                RunId = ctx.RunId,
+                LastPlayedAtUnixMs = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                HasPlayerPos = ctx.HasPlayerPos,
+                PlayerX = ctx.PlayerX,
+                PlayerY = ctx.PlayerY,
+                QolSeed = ctx.QolSeed,
+                QolSeedInput = ctx.QolSeedInput,
+                WorldEngine = ctx.WorldEngine,
+                PosMode = WorldEngineArbiter.PositionMode,
+                FixedX = WorldEngineArbiter.FixedX,
+                FixedY = WorldEngineArbiter.FixedY,
+                IsMultiplayer = ShouldUseMpSave(),
+            };
+        }
+
+        /// <summary>读档/回档前按 sidecar 选定的世界引擎准备世界还原：self 由本模组写回位置，qol 交给 QoL。</summary>
+        internal void PrepareWorldForSlot(SlotSidecar sidecar)
+        {
+            if (sidecar == null) return;
+            bool wantSelf = string.Equals(sidecar.WorldEngine, "self", StringComparison.OrdinalIgnoreCase);
+            ModLog.Info($"回档引擎={(wantSelf ? "self" : "qol")} (sidecar.WorldEngine='{sidecar.WorldEngine}')");
+
+            if (wantSelf)
+            {
+                WorldEngineArbiter.Apply(WorldEngine.Self, sidecar.QolSeed, sidecar.QolSeedInput);
+                var pos = ResolveSpawnPosition(sidecar);
+                if (pos.HasValue)
+                {
+                    SelfSpawnPatcher.PendingPosition = pos;
+                    ModLog.Info($"回档准备：位置模式={sidecar.PosMode} 目标=({pos.Value.x:0.0},{pos.Value.y:0.0}) hasPos={sidecar.HasPlayerPos}");
+                }
+                else
+                {
+                    ModLog.Warning($"回档准备：无可还原位置（hasPos={sidecar.HasPlayerPos} posMode={sidecar.PosMode}）");
+                }
+            }
+            else
+            {
+                if (!QolBridge.IsQolPresent())
+                {
+                    ModLog.Warning("该存档由 QoL 引擎生成，但当前未检测到 QoL，世界可能不一致");
+                }
+                WorldEngineArbiter.Apply(WorldEngine.Qol, sidecar.QolSeed, sidecar.QolSeedInput);
+                QolBridge.PrepareRollback(sidecar);
+            }
+        }
+
+        private static Vector3? ResolveSpawnPosition(SlotSidecar sidecar)
+        {
+            bool fixedMode = string.Equals(sidecar.PosMode, "fixedPos", StringComparison.OrdinalIgnoreCase);
+            if (fixedMode) return new Vector3(sidecar.FixedX, sidecar.FixedY, 0f);
+            if (sidecar.HasPlayerPos) return new Vector3(sidecar.PlayerX, sidecar.PlayerY, 0f);
+            return null;
         }
 
         internal void DeleteSlot(string slotFullPath)
@@ -287,12 +425,12 @@ namespace CasualtiesUnknown.SaveManager
         {
             if (string.IsNullOrEmpty(fullPath))
             {
-                _staticLog?.LogWarning("ReadRunIdFromSv: 路径为空");
+                ModLog.Warning("ReadRunIdFromSv: 路径为空");
                 return 0;
             }
             if (!File.Exists(fullPath))
             {
-                _staticLog?.LogWarning($"ReadRunIdFromSv: 文件不存在 {fullPath}");
+                ModLog.Warning($"ReadRunIdFromSv: 文件不存在 {fullPath}");
                 return 0;
             }
             try
@@ -300,7 +438,7 @@ namespace CasualtiesUnknown.SaveManager
                 byte[] bytes = File.ReadAllBytes(fullPath);
                 if (bytes == null || bytes.Length == 0)
                 {
-                    _staticLog?.LogWarning($"ReadRunIdFromSv: 文件为空 {fullPath}");
+                    ModLog.Warning($"ReadRunIdFromSv: 文件为空 {fullPath}");
                     return 0;
                 }
                 string json;
@@ -310,18 +448,18 @@ namespace CasualtiesUnknown.SaveManager
                 }
                 catch (Exception ex)
                 {
-                    _staticLog?.LogWarning($"ReadRunIdFromSv: Unzip 失败 {fullPath}: {ex.Message}");
+                    ModLog.Warning($"ReadRunIdFromSv: Unzip 失败 {fullPath}: {ex.Message}");
                     json = null;
                 }
                 if (!string.IsNullOrEmpty(json))
                 {
                     int v = ParseIntField(json, "\"cId\":");
                     if (v != 0) return v;
-                    _staticLog?.LogInfo($"ReadRunIdFromSv: {Path.GetFileName(fullPath)} body cId=0，尝试 mp_rules.json fallback");
+                    ModLog.Info($"ReadRunIdFromSv: {Path.GetFileName(fullPath)} body cId=0，尝试 mp_rules.json fallback");
                 }
                 else
                 {
-                    _staticLog?.LogWarning($"ReadRunIdFromSv: {fullPath} Unzip 后 json 为空");
+                    ModLog.Warning($"ReadRunIdFromSv: {fullPath} Unzip 后 json 为空");
                 }
 
                 string dir = Path.GetDirectoryName(fullPath);
@@ -342,13 +480,13 @@ namespace CasualtiesUnknown.SaveManager
                             return StableHash(steamId);
                         }
                     }
-                    _staticLog?.LogWarning($"ReadRunIdFromSv: {rulesPath} 无 SAVEID 与 STEAM_xxx，无法解 runId");
+                    ModLog.Warning($"ReadRunIdFromSv: {rulesPath} 无 SAVEID 与 STEAM_xxx，无法解 runId");
                 }
                 return 0;
             }
             catch (Exception ex)
             {
-                _staticLog?.LogWarning($"ReadRunIdFromSv: 处理 {fullPath} 异常 {ex.Message}");
+                ModLog.Warning($"ReadRunIdFromSv: 处理 {fullPath} 异常 {ex.Message}");
                 return 0;
             }
         }
@@ -396,7 +534,7 @@ namespace CasualtiesUnknown.SaveManager
             }
             catch (Exception ex)
             {
-                _staticLog?.LogWarning($"ComputeCurrentRunId: 读 WoundView.cInfo[2] 异常 {ex.Message}");
+                ModLog.Warning($"ComputeCurrentRunId: 读 WoundView.cInfo[2] 异常 {ex.Message}");
             }
 
             // 2) 候选 .sv 文件：先单机/多人 save.sv，再 autosave.sv（save.sv 有时 cId=0 但 autosave.sv 已有真值）
@@ -414,16 +552,19 @@ namespace CasualtiesUnknown.SaveManager
                 int v = ReadRunIdFromSv(path);
                 if (v != 0)
                 {
-                    _staticLog?.LogInfo($"ComputeCurrentRunId: 通过 {Path.GetFileName(path)} 解出 runId={v}");
+                    ModLog.Info($"ComputeCurrentRunId: 通过 {Path.GetFileName(path)} 解出 runId={v}");
                     return v;
                 }
             }
-            _staticLog?.LogWarning("ComputeCurrentRunId: 所有候选 .sv 都解不出 runId，返回 0");
+            ModLog.Warning("ComputeCurrentRunId: 所有候选 .sv 都解不出 runId，返回 0");
             return 0;
         }
 
-        /// <summary>当前游戏 save.sv 的 hash；不存在或读失败返回 null。</summary>
-        internal static string ComputeCurrentSaveHash() => ComputeFileHash(GameSavePath);
+        /// <summary>当前游戏存档的 hash：多人取 mp_rules.json，单机取 save.sv；不存在返回 null。</summary>
+        internal static string ComputeCurrentSaveHash()
+            => MpSaveLocator.IsMultiplayerSaveActive()
+                ? ComputeFileHash(MpSaveLocator.MpRulesPath)
+                : ComputeFileHash(GameSavePath);
 
         // —— 内部 —— //
 
@@ -449,14 +590,14 @@ namespace CasualtiesUnknown.SaveManager
 
         private string WriteSlotFile(GameContext ctx, bool isAuto, string prefix = null)
         {
-            string src = GameSavePath;
-            if (!File.Exists(src))
+            bool mp = ShouldUseMpSave();
+            if (!mp && !File.Exists(GameSavePath))
             {
                 throw new FileNotFoundException("当前没有 save.sv 可复制");
             }
 
-            // 文件夹结构：slots/<runId>/<YYYY-MM-DD>/<runId>-<biome>-<unix秒>.sv
-            int runId = ctx.RunId != 0 ? ctx.RunId : ReadRunIdFromSv(src);
+            int runId = ctx.RunId != 0 ? ctx.RunId
+                : (mp ? ReadRunIdFromMpRules() : ReadRunIdFromSv(GameSavePath));
             string runFolder = runId == 0 ? "0" : runId.ToString();
             string dateFolder = DateTime.Now.ToString("yyyy-MM-dd");
             string fullDir = Path.Combine(_slotsRoot, runFolder, dateFolder);
@@ -474,8 +615,21 @@ namespace CasualtiesUnknown.SaveManager
                 n++;
             }
 
-            File.Copy(src, dst, overwrite: false);
+            if (mp) MpSaveLocator.PackMpSaveTo(dst);
+            else File.Copy(GameSavePath, dst, overwrite: false);
             return dst;
+        }
+
+        /// <summary>从 mp_rules.json 的 SAVEID 解出多人存档 runId；失败返回 0。</summary>
+        private static int ReadRunIdFromMpRules()
+        {
+            try
+            {
+                if (!File.Exists(MpSaveLocator.MpRulesPath)) return 0;
+                string rj = File.ReadAllText(MpSaveLocator.MpRulesPath);
+                return ParseIntField(rj, "\"SAVEID\":");
+            }
+            catch { return 0; }
         }
 
         /// <summary>读当前游戏上下文（biome + runId + 玩家位置 + QoL 种子）。游戏未加载时各项为默认值。</summary>
@@ -501,7 +655,12 @@ namespace CasualtiesUnknown.SaveManager
                 }
             }
             catch { }
-            QolBridge.ReadCurrentSeed(out int qolSeed, out string qolInput, _log);
+            QolBridge.ReadCurrentSeed(out int qolSeed, out string qolInput);
+            if (SeededWorldEngine.IsActive)
+            {
+                qolSeed = SeededWorldEngine.CurrentSeed;
+                qolInput = SeededWorldEngine.InputString;
+            }
             return new GameContext
             {
                 Biome = biome,
@@ -511,6 +670,7 @@ namespace CasualtiesUnknown.SaveManager
                 HasPlayerPos = hasPos,
                 QolSeed = qolSeed,
                 QolSeedInput = qolInput,
+                WorldEngine = WorldEngineArbiter.Current == WorldEngine.Self ? "self" : "qol",
             };
         }
 
@@ -523,6 +683,7 @@ namespace CasualtiesUnknown.SaveManager
             public bool HasPlayerPos;
             public int QolSeed;
             public string QolSeedInput;
+            public string WorldEngine;
         }
 
         private static string ResolveSlotsRoot()

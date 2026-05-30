@@ -14,7 +14,7 @@ namespace CasualtiesUnknown.SaveManager
     {
         private const string PluginGuid = "com.casualtiesUnknown.saveManager";
         private const string PluginName = "SaveManager";
-        private const string PluginVersion = "1.0.0";
+        private const string PluginVersion = "1.0.5";
 
         private static ManualLogSource _log;
 
@@ -36,8 +36,14 @@ namespace CasualtiesUnknown.SaveManager
             gameObject.hideFlags = HideFlags.HideAndDontSave;
             UnityEngine.Object.DontDestroyOnLoad(gameObject);
             _cfg = new HotkeyConfig(Config);
-            _store = new SaveStore(_log);
-            _rollback = new RollbackController(_cfg, _store, _log);
+            ModLog.Init(_log);
+            ModLog.ShowInConsole = _cfg.ShowLogInConsole.Value;
+            _cfg.ShowLogInConsole.SettingChanged += (_, __) => ModLog.ShowInConsole = _cfg.ShowLogInConsole.Value;
+            UpdateChecker.Enabled = _cfg.AcceptUpdateNotice.Value;
+            WorldEngineArbiter.SyncPreference(_cfg.PreferredEngine.Value, _cfg.SeedInput.Value,
+                _cfg.PositionMode.Value, _cfg.FixedX.Value, _cfg.FixedY.Value);
+            _store = new SaveStore();
+            _rollback = new RollbackController(_cfg, _store);
 
             _overlay = new OverlayUI();
             _window = new SaveManagerWindow(_cfg, _store,
@@ -51,14 +57,17 @@ namespace CasualtiesUnknown.SaveManager
                 onClosed: OnPanelClosed,
                 rollback: _rollback);
 
-            MenuButtonUiInjector.Setup(_log, () => _window.OpenPanel());
-            PreRunGuardLog.Log = _log;
+            MenuButtonUiInjector.Setup(() => _window.OpenPanel());
 
             ResetAutoBackupTimer();
             // 用 Application.quitting 而非 OnApplicationQuit：在 Plugin 实例销毁前触发，可保证
             // Harmony unpatch 在游戏方法被最后一次调用前完成。
             Application.quitting += OnApplicationQuitting;
-            _log.LogInfo($"{PluginName} ready · slots→{_store.SlotsRoot} · save.sv={SaveStore.GameSavePath}");
+            ModLog.Info($"{PluginName} ready · slots→{_store.SlotsRoot} · save.sv={SaveStore.GameSavePath}");
+            ModLog.Info(MultiplayerBridge.IsModPresent() ? I18n.T("mp.mod_detected") : I18n.T("mp.mod_not_detected"));
+            ModLog.Info(QolBridge.IsQolPresent() ? I18n.T("qol.mod_detected") : I18n.T("qol.mod_not_detected"));
+            MpWorldSeedInjector.TryPatch();
+            gameObject.AddComponent<UpdateChecker>();
         }
 
         private void OnApplicationQuitting()
@@ -74,7 +83,7 @@ namespace CasualtiesUnknown.SaveManager
         private void Update()
         {
             if (_quitting) return;
-            UiBlocker.EnforceBlocked(_log);
+            UiBlocker.EnforceBlocked();
             _rollback.Tick();
 
             if (HotkeyConfig.TriggeredThisFrame(_cfg.ToggleSlotsHotkey))
@@ -124,14 +133,19 @@ namespace CasualtiesUnknown.SaveManager
         {
             try
             {
-                GameSaveBridge.TrySaveGame(_log);
+                if (MultiplayerBridge.IsMultiplayerRunning() && !MultiplayerBridge.IsServer())
+                {
+                    SetMessage(I18n.T("mp.client_cannot_save"));
+                    return;
+                }
+                GameSaveBridge.TrySaveGame();
                 string path = _store.SaveManual(nickname);
-                SetMessage(I18n.F("fmt.saved_to", System.IO.Path.GetFileName(path), SaveStore.GameSavePath));
+                SetMessage(I18n.F("fmt.saved_to", System.IO.Path.GetFileName(path), SaveStore.CurrentSaveDisplayPath));
             }
             catch (Exception ex)
             {
                 SetMessage(I18n.F("fmt.save_failed", ex.Message));
-                _log.LogWarning(ex.ToString());
+                ModLog.Warning(ex.ToString());
             }
         }
 
@@ -140,15 +154,20 @@ namespace CasualtiesUnknown.SaveManager
             try
             {
                 if (PlayerCamera.main == null || WorldGeneration.world == null) return;
+                if (MultiplayerBridge.IsMultiplayerRunning() && !MultiplayerBridge.IsServer())
+                {
+                    ModLog.Info(I18n.T("mp.client_skip_autosave"));
+                    return;
+                }
                 // 先调 SaveSystem.SaveGame 让游戏把内存里的物品 / 装备 / 状态写到 save.sv，
                 // 否则槽位拷的是上一次进层的旧快照，回档会丢身上的物品。
-                GameSaveBridge.TrySaveGame(_log);
+                GameSaveBridge.TrySaveGame();
                 string path = _store.AutoBackup(_cfg.AutoBackupKeep.Value);
-                _log.LogInfo(I18n.F("fmt.auto_backup_done", System.IO.Path.GetFileName(path)));
+                ModLog.Info(I18n.F("fmt.auto_backup_done", System.IO.Path.GetFileName(path)));
             }
             catch (Exception ex)
             {
-                _log.LogWarning(I18n.F("fmt.auto_backup_failed", ex.Message));
+                ModLog.Warning(I18n.F("fmt.auto_backup_failed", ex.Message));
             }
         }
 
@@ -162,7 +181,7 @@ namespace CasualtiesUnknown.SaveManager
             catch (Exception ex)
             {
                 SetMessage(I18n.F("fmt.restore_failed", ex.Message));
-                _log.LogWarning(ex.ToString());
+                ModLog.Warning(ex.ToString());
             }
         }
 
@@ -176,7 +195,7 @@ namespace CasualtiesUnknown.SaveManager
             catch (Exception ex)
             {
                 SetMessage(I18n.F("fmt.delete_failed", ex.Message));
-                _log.LogWarning(ex.ToString());
+                ModLog.Warning(ex.ToString());
             }
         }
 
@@ -184,7 +203,7 @@ namespace CasualtiesUnknown.SaveManager
         {
             _lastMessage = msg;
             _lastMessageAt = Time.unscaledTime;
-            _log.LogInfo(msg);
+            ModLog.Info(msg);
         }
 
         private string BuildStatusLine()
@@ -193,7 +212,7 @@ namespace CasualtiesUnknown.SaveManager
             {
                 return _lastMessage;
             }
-            return I18n.F("status.save_path", SaveStore.GameSavePath);
+            return I18n.F("status.save_path", SaveStore.CurrentSaveDisplayPath);
         }
 
         private void ResetAutoBackupTimer()
@@ -206,12 +225,13 @@ namespace CasualtiesUnknown.SaveManager
 
         private void OnPanelOpened()
         {
-            UiBlocker.Block(_log);
+            UiBlocker.Block();
+            ModLog.Info(SaveStore.DescribeSavePathDecision());
         }
 
         private void OnPanelClosed()
         {
-            UiBlocker.Unblock(_log);
+            UiBlocker.Unblock();
         }
     }
 }

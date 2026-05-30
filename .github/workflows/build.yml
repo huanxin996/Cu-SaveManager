@@ -1,0 +1,39 @@
+name: Build SaveManager
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "**.cs"
+      - "**.csproj"
+      - "references/**"
+      - ".github/workflows/build.yml"
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build Release
+        shell: pwsh
+        run: dotnet build SaveManager.csproj -c Release --nologo
+
+      - name: Upload SaveManager
+        uses: actions/upload-artifact@v4
+        with:
+          name: SaveManager
+          path: |
+            bin/Release/SaveManager.dll
+            bin/Release/SaveManager.pdb
+          if-no-files-found: error
+          retention-days: 30

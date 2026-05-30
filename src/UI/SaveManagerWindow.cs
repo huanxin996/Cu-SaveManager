@@ -43,6 +43,11 @@ namespace CasualtiesUnknown.SaveManager
         private bool _capturingSlotsKey;
         private bool _capturingQuickKey;
 
+        // 固定世界设置输入缓存（首帧从配置初始化）
+        private string _seedInputCache;
+        private string _fixedXCache;
+        private string _fixedYCache;
+
         // 卡片昵称编辑状态：path -> 当前编辑文本
         private readonly Dictionary<string, string> _editingNicknames = new Dictionary<string, string>();
 
@@ -65,7 +70,7 @@ namespace CasualtiesUnknown.SaveManager
             _onOpened?.Invoke();
         }
 
-        /// <summary>关闭面板并触发 onClosed 副作用（恢复被屏蔽的 raycaster 等）。</summary>
+        /// <summary>关闭面板并触发 onClosed 副作用（恢复被暂时禁用的 raycaster 等）。</summary>
         internal void ClosePanel()
         {
             if (!Open) return;
@@ -259,6 +264,12 @@ namespace CasualtiesUnknown.SaveManager
             GUILayout.EndVertical();
 
             GUILayout.Space(12f);
+            GUILayout.Label(I18n.T("sec.world"), BlackWhiteSkin.HeaderStyle);
+            GUILayout.BeginVertical(BlackWhiteSkin.CardStyle);
+            DrawWorldGroup();
+            GUILayout.EndVertical();
+
+            GUILayout.Space(12f);
             GUILayout.Label(I18n.T("sec.hotkeys"), BlackWhiteSkin.HeaderStyle);
             GUILayout.BeginVertical(BlackWhiteSkin.CardStyle);
             DrawHotkeyRow(I18n.T("lbl.hotkey_toggle_panel"), _cfg.ToggleSlotsHotkey, ref _capturingSlotsKey,
@@ -268,6 +279,19 @@ namespace CasualtiesUnknown.SaveManager
             DrawHotkeyRow(I18n.T("lbl.hotkey_settings_tab"), _cfg.ToggleSettingsHotkey, ref _capturingSettingsKey,
                 () => { _capturingSlotsKey = false; _capturingQuickKey = false; });
             CaptureKeyDownIfNeeded();
+            GUILayout.EndVertical();
+
+            GUILayout.Space(12f);
+            GUILayout.Label(I18n.T("sec.misc"), BlackWhiteSkin.HeaderStyle);
+            GUILayout.BeginVertical(BlackWhiteSkin.CardStyle);
+            bool newShowLog = DrawSwitch(I18n.T("sw.show_log_in_console"), _cfg.ShowLogInConsole.Value);
+            if (newShowLog != _cfg.ShowLogInConsole.Value) _cfg.ShowLogInConsole.Value = newShowLog;
+            bool newAcceptUpdate = DrawSwitch(I18n.T("sw.accept_update_notice"), _cfg.AcceptUpdateNotice.Value);
+            if (newAcceptUpdate != _cfg.AcceptUpdateNotice.Value)
+            {
+                _cfg.AcceptUpdateNotice.Value = newAcceptUpdate;
+                UpdateChecker.Enabled = newAcceptUpdate;
+            }
             GUILayout.EndVertical();
 
             GUILayout.Space(20f);
@@ -368,12 +392,16 @@ namespace CasualtiesUnknown.SaveManager
             GUILayout.BeginHorizontal();
             GUILayout.Label(I18n.T("lbl.current_save"), BlackWhiteSkin.HeaderStyle,
                 GUILayout.MinWidth(220f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(36f));
-            GUILayout.Label(SaveStore.GameSavePath, GUILayout.ExpandWidth(true), GUILayout.MinHeight(36f));
+            GUILayout.Label(SaveStore.CurrentSaveDisplayPath, GUILayout.ExpandWidth(true), GUILayout.MinHeight(36f));
             GUILayout.EndHorizontal();
             int runId = SaveStore.ComputeCurrentRunId();
-            string sub = currentHash == null
-                ? I18n.T("msg.no_save_yet")
-                : (runId == 0 ? I18n.T("msg.run_id_unknown") : I18n.F("fmt.run_id", runId));
+            string sub;
+            if (SaveStore.IsMultiplayerContextActive())
+                sub = runId != 0 ? I18n.F("fmt.run_id", runId) : I18n.T("mp.current_save_hint");
+            else
+                sub = currentHash == null
+                    ? I18n.T("msg.no_save_yet")
+                    : (runId == 0 ? I18n.T("msg.run_id_unknown") : I18n.F("fmt.run_id", runId));
             GUILayout.Label(sub);
             GUILayout.EndVertical();
             GUILayout.Space(8f);
@@ -520,6 +548,103 @@ namespace CasualtiesUnknown.SaveManager
         }
 
         // —— 控件 helpers —— //
+
+        /// <summary>固定世界设置组：引擎二选一 + 种子输入 + 位置模式二选一 + 固定坐标。改值即写配置并同步仲裁器。</summary>
+        private void DrawWorldGroup()
+        {
+            bool engineSelf = string.Equals(_cfg.PreferredEngine.Value, "self", StringComparison.OrdinalIgnoreCase);
+            bool qolPresent = QolBridge.IsQolPresent();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(I18n.T("lbl.world_engine"),
+                GUILayout.MinWidth(LabelColW), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight));
+            GUILayout.Space(20f);
+            bool prevEnabled = GUI.enabled;
+            GUI.enabled = prevEnabled && qolPresent;
+            if (GUILayout.Button(I18n.T("opt.engine_qol"), engineSelf ? BlackWhiteSkin.TabStyle : BlackWhiteSkin.TabActiveStyle,
+                GUILayout.MinWidth(180f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+            {
+                _cfg.PreferredEngine.Value = "qol";
+            }
+            GUI.enabled = prevEnabled;
+            GUILayout.Space(8f);
+            if (GUILayout.Button(I18n.T("opt.engine_self"), engineSelf ? BlackWhiteSkin.TabActiveStyle : BlackWhiteSkin.TabStyle,
+                GUILayout.MinWidth(180f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+            {
+                _cfg.PreferredEngine.Value = "self";
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            if (!qolPresent)
+            {
+                GUILayout.Label(I18n.T("hint.qol_absent"));
+            }
+            GUILayout.Space(6f);
+
+            _seedInputCache = _seedInputCache ?? _cfg.SeedInput.Value;
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(I18n.T("lbl.seed_input"),
+                GUILayout.MinWidth(LabelColW), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight));
+            string newSeed = GUILayout.TextField(_seedInputCache ?? "",
+                GUILayout.MinWidth(280f), GUILayout.ExpandWidth(true), GUILayout.MinHeight(RowMinHeight));
+            if (newSeed != _seedInputCache)
+            {
+                _seedInputCache = newSeed;
+                _cfg.SeedInput.Value = newSeed;
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.Space(6f);
+
+            bool posFixed = string.Equals(_cfg.PositionMode.Value, "fixedPos", StringComparison.OrdinalIgnoreCase);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(I18n.T("lbl.pos_mode"),
+                GUILayout.MinWidth(LabelColW), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight));
+            GUILayout.Space(20f);
+            if (GUILayout.Button(I18n.T("opt.pos_last"), posFixed ? BlackWhiteSkin.TabStyle : BlackWhiteSkin.TabActiveStyle,
+                GUILayout.MinWidth(180f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+            {
+                _cfg.PositionMode.Value = "lastPos";
+            }
+            GUILayout.Space(8f);
+            if (GUILayout.Button(I18n.T("opt.pos_fixed"), posFixed ? BlackWhiteSkin.TabActiveStyle : BlackWhiteSkin.TabStyle,
+                GUILayout.MinWidth(180f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+            {
+                _cfg.PositionMode.Value = "fixedPos";
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            GUILayout.Space(6f);
+
+            if (posFixed)
+            {
+                _fixedXCache = _fixedXCache ?? _cfg.FixedX.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                _fixedYCache = _fixedYCache ?? _cfg.FixedY.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                DrawFloatField(I18n.T("lbl.fixed_x"), ref _fixedXCache, _cfg.FixedX);
+                DrawFloatField(I18n.T("lbl.fixed_y"), ref _fixedYCache, _cfg.FixedY);
+            }
+
+            WorldEngineArbiter.SyncPreference(_cfg.PreferredEngine.Value, _cfg.SeedInput.Value,
+                _cfg.PositionMode.Value, _cfg.FixedX.Value, _cfg.FixedY.Value);
+        }
+
+        private static void DrawFloatField(string label, ref string cache, ConfigEntry<float> entry)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label, GUILayout.MinWidth(LabelColW), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight));
+            string next = GUILayout.TextField(cache ?? "",
+                GUILayout.MinWidth(200f), GUILayout.ExpandWidth(true), GUILayout.MinHeight(RowMinHeight));
+            if (next != cache)
+            {
+                cache = next;
+                if (float.TryParse(next, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out float v))
+                {
+                    entry.Value = v;
+                }
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            GUILayout.Space(6f);
+        }
 
         /// <summary>左右开关：标签 + [开] / [关] 两按钮，当前态加白色边框高亮。</summary>
         private static bool DrawSwitch(string label, bool value)

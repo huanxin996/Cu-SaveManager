@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using BepInEx.Logging;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,7 +18,7 @@ namespace CasualtiesUnknown.SaveManager
         /// <summary>面板是否处于阻穿透状态。供 Harmony patch 判断是否应吞掉 onClick。</summary>
         internal static bool IsBlocking => _isBlocking;
 
-        internal static void Block(ManualLogSource log)
+        internal static void Block()
         {
             try
             {
@@ -35,12 +34,12 @@ namespace CasualtiesUnknown.SaveManager
             }
             catch (System.Exception ex)
             {
-                log?.LogWarning($"UiBlocker.Block 失败：{ex.Message}");
+                ModLog.Warning($"UiBlocker.Block 失败：{ex.Message}");
             }
         }
 
         /// <summary>把列表中所有 GraphicRaycaster.enabled 重设为 false。</summary>
-        internal static void EnforceBlocked(ManualLogSource log)
+        internal static void EnforceBlocked()
         {
             if (!_isBlocking) return;
             try
@@ -54,7 +53,7 @@ namespace CasualtiesUnknown.SaveManager
             catch { }
         }
 
-        internal static void Unblock(ManualLogSource log)
+        internal static void Unblock()
         {
             try
             {
@@ -67,7 +66,7 @@ namespace CasualtiesUnknown.SaveManager
             }
             catch (System.Exception ex)
             {
-                log?.LogWarning($"UiBlocker.Unblock 失败：{ex.Message}");
+                ModLog.Warning($"UiBlocker.Unblock 失败：{ex.Message}");
             }
         }
     }
