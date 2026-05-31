@@ -71,4 +71,5 @@ English guide: see [README.en.md](README.en.md)
 ## 相关项目
 
 - [CasualtiesUnknown-SkinEditor 皮肤编辑器](https://github.com/huanxin996/CasualtiesUnknown-SkinEditor)：支持实时预览与动画预览。
-- 仓库：[huanxin996/Cu-SaveManager](https://github.com/huanxin996/Cu-SaveManager)
+- [huanxin996/Cu-Hotbar](https://github.com/huanxin996/Cu-Hotbar): 可自定义的快捷栏，支持物品交换和快速使用。
+  

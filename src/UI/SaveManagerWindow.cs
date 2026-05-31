@@ -166,7 +166,8 @@ namespace CasualtiesUnknown.SaveManager
             GUILayout.BeginArea(bodyRect);
             if (_tab == 0) DrawSettingsTab();
             else if (_tab == 1) DrawSlotsTab();
-            else _rollbackTab.Draw();
+            else if (_tab == 2) _rollbackTab.Draw();
+            else DrawExternalTab(_tab - 3);
             GUILayout.EndArea();
 
             // 状态条 + 上方分隔线
@@ -183,6 +184,11 @@ namespace CasualtiesUnknown.SaveManager
             DrawTabButton(new Rect(28f, top, tabW, tabH), I18n.T("tab.settings"), 0);
             DrawTabButton(new Rect(28f + (tabW + 16f) * 1f, top, tabW, tabH), I18n.T("tab.slots"), 1);
             DrawTabButton(new Rect(28f + (tabW + 16f) * 2f, top, tabW, tabH), I18n.T("tab.rollback"), 2);
+            var ext = ExternalTabRegistry.Entries;
+            for (int i = 0; i < ext.Count; i++)
+            {
+                DrawTabButton(new Rect(28f + (tabW + 16f) * (3 + i), top, tabW, tabH), ext[i].Title, 3 + i);
+            }
         }
 
         private void DrawTabButton(Rect rect, string label, int idx)
@@ -193,6 +199,24 @@ namespace CasualtiesUnknown.SaveManager
                 _tab = idx;
                 CancelKeyCapture();
             }
+        }
+
+        private Vector2 _externalScroll;
+
+        /// <summary>绘制第 index 个外部注册分页；委托异常被吞掉以隔离外部 mod 故障。</summary>
+        private void DrawExternalTab(int index)
+        {
+            var ext = ExternalTabRegistry.Entries;
+            if (index < 0 || index >= ext.Count)
+            {
+                _tab = 0;
+                return;
+            }
+            _externalScroll = GUILayout.BeginScrollView(_externalScroll,
+                GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+            try { ext[index].Draw?.Invoke(); }
+            catch (Exception ex) { GUILayout.Label("external tab error: " + ex.Message); }
+            GUILayout.EndScrollView();
         }
 
         // —— 设置页 —— //

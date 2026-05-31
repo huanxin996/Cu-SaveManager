@@ -71,4 +71,4 @@ Once enabled under Settings → Auto Rollback on Death, dying starts a countdown
 ## Related
 
 - [CasualtiesUnknown-SkinEditor](https://github.com/huanxin996/CasualtiesUnknown-SkinEditor): live preview and animation preview.
-- Repository: [huanxin996/Cu-SaveManager](https://github.com/huanxin996/Cu-SaveManager)
+- [huanxin996/Cu-Hotbar](https://github.com/huanxin996/Cu-Hotbar): customizable hotbar with item swapping and quick-use.
