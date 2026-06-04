@@ -1,4 +1,4 @@
-# SaveManager V1.0.5 for Casualties: Unknown
+# SaveManager V1.0.6 for Casualties: Unknown
 
 > 适配游戏《未知伤亡》的多存档、死亡回档与固定世界模组
 > 兼容：KrokMP 多人模式、QoL Unknown（缺少不影响基础功能）
@@ -12,7 +12,7 @@ English guide: see [README.en.md](README.en.md)
 目前以测试单人模式下的，保存回档均正常
 多人测试主机测试正常。
 
-## 本次重构（1.0.5）
+## 本次重构（1.0.6）
 
 围绕"固定世界 + 回档"这条主线做了一轮系统性整理：
 

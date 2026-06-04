@@ -10,6 +10,11 @@ namespace CasualtiesUnknown.SaveManager
     /// </summary>
     internal static class I18n
     {
+        private static readonly string[] ChineseKeywords =
+        {
+            "中文", "汉化", "简中", "简体", "繁中", "繁体", "繁體", "chinese"
+        };
+
         private static readonly Dictionary<string, string> _zh = new Dictionary<string, string>
         {
             // 通用
@@ -252,25 +257,100 @@ namespace CasualtiesUnknown.SaveManager
             ["lbl.before_load_alias"] = "Auto backup before restore",
         };
 
-        /// <summary>当前语言判定：Locale.currentLangName 以 "zh" / "WC" 前缀走中文，否则英文。</summary>
+        /// <summary>当前语言判定：支持自定义中文包名称关键词，并允许配置强制切换 zh/en。</summary>
         private static Dictionary<string, string> Current
         {
             get
             {
-                string name = null;
-                try { name = Locale.currentLangName; } catch { }
-                if (string.IsNullOrEmpty(name))
-                {
-                    try { name = PlayerPrefs.GetString("locale"); } catch { }
-                }
-                if (!string.IsNullOrEmpty(name)
-                    && (name.StartsWith("zh", System.StringComparison.OrdinalIgnoreCase)
-                        || name.StartsWith("WC", System.StringComparison.OrdinalIgnoreCase)))
-                {
-                    return _zh;
-                }
-                return _en;
+                return UseChinese() ? _zh : _en;
             }
+        }
+
+        private static bool UseChinese()
+        {
+            switch (NormalizeLanguageMode(Plugin.PreferredLanguageMode))
+            {
+                case "zh":
+                    return true;
+                case "en":
+                    return false;
+                default:
+                    return IsChineseLocaleName(ReadCurrentLanguageName());
+            }
+        }
+
+        private static string ReadCurrentLanguageName()
+        {
+            string name = null;
+            try { name = Locale.currentLangName; } catch { }
+            if (string.IsNullOrEmpty(name))
+            {
+                try { name = PlayerPrefs.GetString("locale"); } catch { }
+            }
+            return name;
+        }
+
+        private static string NormalizeLanguageMode(string mode)
+        {
+            if (string.IsNullOrWhiteSpace(mode)) return "auto";
+            mode = mode.Trim().ToLowerInvariant();
+            return mode == "zh" || mode == "en" ? mode : "auto";
+        }
+
+        private static bool IsChineseLocaleName(string name)
+        {
+            string normalized = StripRichText(name).Trim();
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return false;
+            }
+
+            if (normalized.StartsWith("zh", System.StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith("WC", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            for (int i = 0; i < ChineseKeywords.Length; i++)
+            {
+                if (normalized.IndexOf(ChineseKeywords[i], System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string StripRichText(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.IndexOf('<') < 0)
+            {
+                return value ?? string.Empty;
+            }
+
+            var sb = new System.Text.StringBuilder(value.Length);
+            bool inTag = false;
+            for (int i = 0; i < value.Length; i++)
+            {
+                char ch = value[i];
+                if (ch == '<')
+                {
+                    inTag = true;
+                    continue;
+                }
+                if (ch == '>')
+                {
+                    inTag = false;
+                    continue;
+                }
+                if (!inTag)
+                {
+                    sb.Append(ch);
+                }
+            }
+
+            return sb.ToString();
         }
 
         internal static string T(string key)

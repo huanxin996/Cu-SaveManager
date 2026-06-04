@@ -14,9 +14,10 @@ namespace CasualtiesUnknown.SaveManager
     {
         private const string PluginGuid = "com.casualtiesUnknown.saveManager";
         private const string PluginName = "SaveManager";
-        private const string PluginVersion = "1.0.5";
+        private const string PluginVersion = "1.0.6";
 
         private static ManualLogSource _log;
+        private static Plugin _instance;
 
         private HotkeyConfig _cfg;
         private SaveStore _store;
@@ -30,8 +31,11 @@ namespace CasualtiesUnknown.SaveManager
 
         private static bool _quitting;
 
+        internal static string PreferredLanguageMode => _instance?._cfg?.PreferredLanguage?.Value ?? "auto";
+
         private void Awake()
         {
+            _instance = this;
             _log = Logger;
             gameObject.hideFlags = HideFlags.HideAndDontSave;
             UnityEngine.Object.DontDestroyOnLoad(gameObject);

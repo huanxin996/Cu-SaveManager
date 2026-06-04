@@ -36,6 +36,7 @@ namespace CasualtiesUnknown.SaveManager
         // —— 杂项 —— //
         internal ConfigEntry<bool> ShowLogInConsole { get; }
         internal ConfigEntry<bool> AcceptUpdateNotice { get; }
+        internal ConfigEntry<string> PreferredLanguage { get; }
 
         internal HotkeyConfig(ConfigFile config)
         {
@@ -80,6 +81,8 @@ namespace CasualtiesUnknown.SaveManager
                 "是否把模组日志同步打印到游戏内控制台（` 键打开）。关闭时仅写入 BepInEx 日志。");
             AcceptUpdateNotice = config.Bind("Misc", "AcceptUpdateNotice", true,
                 "是否在启动时检查 GitHub 新版本并在游戏内提示。关闭则不检测不提示。");
+            PreferredLanguage = config.Bind("I18n", "PreferredLanguage", "auto",
+                "界面语言：auto=跟随游戏；zh=强制中文；en=强制英文。该值会写入配置文件并在重启后保留。");
         }
 
         internal static bool IsBound(KeyboardShortcut sc) => sc.MainKey != KeyCode.None;
