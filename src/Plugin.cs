@@ -14,7 +14,7 @@ namespace CasualtiesUnknown.SaveManager
     {
         private const string PluginGuid = "com.casualtiesUnknown.saveManager";
         private const string PluginName = "SaveManager";
-        private const string PluginVersion = "1.0.6";
+        private const string PluginVersion = "1.0.7";
 
         private static ManualLogSource _log;
         private static Plugin _instance;
@@ -53,6 +53,7 @@ namespace CasualtiesUnknown.SaveManager
             _window = new SaveManagerWindow(_cfg, _store,
                 onSaveNow: () => SaveManual(""),
                 onSaveNowAs: nick => SaveManual(nick),
+                onSaveAndExit: SaveAndExitCurrentRun,
                 onLoadSlot: LoadFromSlot,
                 onDeleteSlot: DeleteSlot,
                 onIntervalChanged: ResetAutoBackupTimer,
@@ -172,6 +173,38 @@ namespace CasualtiesUnknown.SaveManager
             catch (Exception ex)
             {
                 ModLog.Warning(I18n.F("fmt.auto_backup_failed", ex.Message));
+            }
+        }
+
+        private void SaveAndExitCurrentRun()
+        {
+            try
+            {
+                if (MultiplayerBridge.IsMultiplayerRunning())
+                {
+                    SetMessage(I18n.T("msg.save_exit_singleplayer_only"));
+                    return;
+                }
+                if (PlayerCamera.main == null || PlayerCamera.main.body == null || WorldGeneration.world == null)
+                {
+                    SetMessage(I18n.T("msg.save_exit_unavailable"));
+                    return;
+                }
+                if (!GameSaveBridge.TrySaveGame())
+                {
+                    SetMessage(I18n.T("msg.save_exit_unavailable"));
+                    return;
+                }
+
+                _store.PersistCurrentSaveForContinue();
+                _window.ClosePanel();
+                PlayerCamera.main.ToMainMenu();
+                SetMessage(I18n.T("msg.save_exit_done"));
+            }
+            catch (Exception ex)
+            {
+                SetMessage(I18n.F("fmt.save_exit_failed", ex.Message));
+                ModLog.Warning(ex.ToString());
             }
         }
 

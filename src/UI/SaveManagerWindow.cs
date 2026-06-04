@@ -23,6 +23,7 @@ namespace CasualtiesUnknown.SaveManager
         private readonly SaveStore _store;
         private readonly Action _onSaveNow;
         private readonly Action<string> _onSaveNowAs;
+        private readonly Action _onSaveAndExit;
         private readonly Action<SlotInfo> _onLoadSlot;
         private readonly Action<SlotInfo> _onDeleteSlot;
         private readonly Action _onIntervalChanged;
@@ -93,7 +94,7 @@ namespace CasualtiesUnknown.SaveManager
         }
 
         internal SaveManagerWindow(HotkeyConfig cfg, SaveStore store,
-            Action onSaveNow, Action<string> onSaveNowAs,
+            Action onSaveNow, Action<string> onSaveNowAs, Action onSaveAndExit,
             Action<SlotInfo> onLoadSlot, Action<SlotInfo> onDeleteSlot,
             Action onIntervalChanged, Func<string> getStatus, Action onOpened, Action onClosed,
             RollbackController rollback)
@@ -102,6 +103,7 @@ namespace CasualtiesUnknown.SaveManager
             _store = store;
             _onSaveNow = onSaveNow;
             _onSaveNowAs = onSaveNowAs;
+            _onSaveAndExit = onSaveAndExit;
             _onLoadSlot = onLoadSlot;
             _onDeleteSlot = onDeleteSlot;
             _onIntervalChanged = onIntervalChanged;
@@ -262,6 +264,13 @@ namespace CasualtiesUnknown.SaveManager
                 else _onSaveNowAs?.Invoke(_quickNickname);
                 _quickNickname = "";
             }
+            GUILayout.Space(12f);
+            if (GUILayout.Button(I18n.T("btn.save_exit"),
+                GUILayout.MinWidth(180f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+            {
+                _onSaveAndExit?.Invoke();
+                _quickNickname = "";
+            }
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
 
@@ -334,6 +343,7 @@ namespace CasualtiesUnknown.SaveManager
                 _cfg.AcceptUpdateNotice.Value = newAcceptUpdate;
                 UpdateChecker.Enabled = newAcceptUpdate;
             }
+            DrawLanguageModeRow(I18n.T("lbl.language"), _cfg.PreferredLanguage);
             GUILayout.EndVertical();
 
             GUILayout.Space(20f);
@@ -716,6 +726,45 @@ namespace CasualtiesUnknown.SaveManager
             GUILayout.EndHorizontal();
             GUILayout.Space(6f);
             return result;
+        }
+
+        private static void DrawLanguageModeRow(string label, ConfigEntry<string> entry)
+        {
+            string mode = NormalizeLanguageMode(entry.Value);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label, GUILayout.MinWidth(LabelColW), GUILayout.ExpandWidth(false),
+                GUILayout.MinHeight(RowMinHeight));
+            GUILayout.Space(20f);
+            if (GUILayout.Button(I18n.T("opt.language_auto"),
+                mode == "auto" ? BlackWhiteSkin.TabActiveStyle : BlackWhiteSkin.TabStyle,
+                GUILayout.MinWidth(140f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+            {
+                entry.Value = "auto";
+            }
+            GUILayout.Space(8f);
+            if (GUILayout.Button(I18n.T("opt.language_zh"),
+                mode == "zh" ? BlackWhiteSkin.TabActiveStyle : BlackWhiteSkin.TabStyle,
+                GUILayout.MinWidth(120f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+            {
+                entry.Value = "zh";
+            }
+            GUILayout.Space(8f);
+            if (GUILayout.Button(I18n.T("opt.language_en"),
+                mode == "en" ? BlackWhiteSkin.TabActiveStyle : BlackWhiteSkin.TabStyle,
+                GUILayout.MinWidth(120f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+            {
+                entry.Value = "en";
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            GUILayout.Space(6f);
+        }
+
+        private static string NormalizeLanguageMode(string mode)
+        {
+            if (string.IsNullOrWhiteSpace(mode)) return "auto";
+            mode = mode.Trim().ToLowerInvariant();
+            return mode == "zh" || mode == "en" ? mode : "auto";
         }
 
         private static void DrawFloatSlider(string label, ConfigEntry<float> entry, float min, float max,

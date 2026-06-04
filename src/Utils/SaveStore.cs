@@ -61,6 +61,7 @@ namespace CasualtiesUnknown.SaveManager
         internal string SaveManual(string nickname)
         {
             var ctx = SnapshotGameContext();
+            PersistCurrentSaveForContinue(ctx);
             string path = WriteSlotFile(ctx, isAuto: false);
             BuildSidecar(ctx, nickname ?? "", isAuto: false).Save(path);
             return path;
@@ -70,6 +71,7 @@ namespace CasualtiesUnknown.SaveManager
         internal string AutoBackup(int keep)
         {
             var ctx = SnapshotGameContext();
+            PersistCurrentSaveForContinue(ctx);
             string path = WriteSlotFile(ctx, isAuto: true);
             BuildSidecar(ctx, "", isAuto: true).Save(path);
             PruneAutoBackups(keep);
@@ -217,6 +219,8 @@ namespace CasualtiesUnknown.SaveManager
                 bak.Save(bakPath);
             }
             File.Copy(slotFullPath, game, overwrite: true);
+            NormalizeSaveBiome(game, sidecar.Biome);
+            PersistCurrentSaveSidecar(sidecar);
             PrepareWorldForSlot(sidecar);
         }
 
@@ -368,12 +372,108 @@ namespace CasualtiesUnknown.SaveManager
             }
         }
 
+        /// <summary>主菜单 Continue 前准备当前 save.sv：优先读 companion 元数据，缺失时按当前配置补齐。</summary>
+        internal void PrepareCurrentSaveForContinue()
+        {
+            if (ShouldUseMpSave()) return;
+            if (!File.Exists(GameSavePath)) return;
+
+            var sidecar = SlotSidecar.LoadOrEmpty(GameSavePath);
+            if (IsEmptySidecar(sidecar)) sidecar = BuildFallbackCurrentSaveSidecar();
+            else FillMissingContinueFields(sidecar);
+
+            sidecar.WorldEngine = ResolveCurrentPreferredEngineName();
+            sidecar.PosMode = WorldEngineArbiter.PositionMode;
+            sidecar.FixedX = WorldEngineArbiter.FixedX;
+            sidecar.FixedY = WorldEngineArbiter.FixedY;
+
+            NormalizeSaveBiome(GameSavePath, sidecar.Biome);
+            PersistCurrentSaveSidecar(sidecar);
+            PrepareWorldForSlot(sidecar);
+        }
+
         private static Vector3? ResolveSpawnPosition(SlotSidecar sidecar)
         {
             bool fixedMode = string.Equals(sidecar.PosMode, "fixedPos", StringComparison.OrdinalIgnoreCase);
             if (fixedMode) return new Vector3(sidecar.FixedX, sidecar.FixedY, 0f);
             if (sidecar.HasPlayerPos) return new Vector3(sidecar.PlayerX, sidecar.PlayerY, 0f);
             return null;
+        }
+
+        internal void PersistCurrentSaveForContinue()
+        {
+            PersistCurrentSaveForContinue(SnapshotGameContext());
+        }
+
+        private void PersistCurrentSaveForContinue(GameContext ctx)
+        {
+            if (ShouldUseMpSave()) return;
+            if (!File.Exists(GameSavePath)) return;
+            NormalizeSaveBiome(GameSavePath, ctx.Biome);
+            PersistCurrentSaveSidecar(BuildSidecar(ctx, "", isAuto: false));
+        }
+
+        private static void PersistCurrentSaveSidecar(SlotSidecar sidecar)
+        {
+            if (sidecar == null || ShouldUseMpSave()) return;
+            sidecar.Save(GameSavePath);
+        }
+
+        private static SlotSidecar BuildFallbackCurrentSaveSidecar()
+        {
+            int seed = QolBridge.ComputeDeterministicSeedFromSaveFile(GameSavePath);
+            return new SlotSidecar
+            {
+                Biome = ReadBiomeFromSv(GameSavePath),
+                RunId = ReadRunIdFromSv(GameSavePath),
+                LastPlayedAtUnixMs = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                QolSeed = seed,
+                QolSeedInput = "",
+                WorldEngine = ResolveCurrentPreferredEngineName(),
+                PosMode = WorldEngineArbiter.PositionMode,
+                FixedX = WorldEngineArbiter.FixedX,
+                FixedY = WorldEngineArbiter.FixedY,
+            };
+        }
+
+        private static void FillMissingContinueFields(SlotSidecar sidecar)
+        {
+            if (sidecar == null) return;
+            if (string.IsNullOrWhiteSpace(sidecar.PosMode))
+            {
+                sidecar.PosMode = WorldEngineArbiter.PositionMode;
+                sidecar.FixedX = WorldEngineArbiter.FixedX;
+                sidecar.FixedY = WorldEngineArbiter.FixedY;
+            }
+            if (sidecar.QolSeed == 0) sidecar.QolSeed = QolBridge.ComputeDeterministicSeedFromSaveFile(GameSavePath);
+            if (sidecar.RunId == 0) sidecar.RunId = ReadRunIdFromSv(GameSavePath);
+            sidecar.LastPlayedAtUnixMs = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+        }
+
+        private static bool IsEmptySidecar(SlotSidecar sidecar)
+        {
+            if (sidecar == null) return true;
+            return !sidecar.Pinned
+                && !sidecar.IsAuto
+                && sidecar.Biome == 0
+                && sidecar.RunId == 0
+                && sidecar.LastPlayedAtUnixMs == 0
+                && !sidecar.HasPlayerPos
+                && sidecar.PlayerX == 0f
+                && sidecar.PlayerY == 0f
+                && sidecar.QolSeed == 0
+                && string.IsNullOrEmpty(sidecar.QolSeedInput)
+                && string.IsNullOrEmpty(sidecar.WorldEngine)
+                && string.IsNullOrEmpty(sidecar.PosMode)
+                && sidecar.FixedX == 0f
+                && sidecar.FixedY == 0f
+                && !sidecar.IsMultiplayer
+                && string.IsNullOrEmpty(sidecar.Nickname);
+        }
+
+        private static string ResolveCurrentPreferredEngineName()
+        {
+            return WorldEngineArbiter.Resolve(WorldEngineArbiter.PreferQol) == WorldEngine.Self ? "self" : "qol";
         }
 
         internal void DeleteSlot(string slotFullPath)
@@ -518,6 +618,58 @@ namespace CasualtiesUnknown.SaveManager
             if (p == start) return 0;
             int.TryParse(json.Substring(start, p - start), out int v);
             return v;
+        }
+
+        private static int ReadBiomeFromSv(string fullPath)
+        {
+            try
+            {
+                if (!File.Exists(fullPath)) return 0;
+                string json = SaveSystem.Unzip(File.ReadAllBytes(fullPath));
+                if (string.IsNullOrEmpty(json)) return 0;
+                return ParseIntField(json, "\"biome\":");
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warning($"ReadBiomeFromSv: 处理 {fullPath} 异常 {ex.Message}");
+                return 0;
+            }
+        }
+
+        private static void NormalizeSaveBiome(string fullPath, int biome)
+        {
+            try
+            {
+                if (!File.Exists(fullPath)) return;
+                byte[] bytes = File.ReadAllBytes(fullPath);
+                if (bytes == null || bytes.Length == 0) return;
+                string json = SaveSystem.Unzip(bytes);
+                if (string.IsNullOrEmpty(json)) return;
+                string rewritten = ReplaceIntField(json, "biome", biome);
+                if (string.Equals(rewritten, json, StringComparison.Ordinal)) return;
+                File.WriteAllBytes(fullPath, SaveSystem.Zip(rewritten));
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warning($"NormalizeSaveBiome 失败 {fullPath}: {ex.Message}");
+            }
+        }
+
+        private static string ReplaceIntField(string json, string field, int value)
+        {
+            if (string.IsNullOrEmpty(json) || string.IsNullOrEmpty(field)) return json;
+            string key = "\"" + field + "\"";
+            int idx = json.IndexOf(key, StringComparison.Ordinal);
+            if (idx < 0) return json;
+            int colon = json.IndexOf(':', idx + key.Length);
+            if (colon < 0) return json;
+            int start = colon + 1;
+            while (start < json.Length && char.IsWhiteSpace(json[start])) start++;
+            int end = start;
+            if (end < json.Length && json[end] == '-') end++;
+            while (end < json.Length && char.IsDigit(json[end])) end++;
+            if (end <= start) return json;
+            return json.Substring(0, start) + value.ToString() + json.Substring(end);
         }
 
         internal static int ComputeCurrentRunId()

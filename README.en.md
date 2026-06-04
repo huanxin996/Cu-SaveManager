@@ -1,4 +1,4 @@
-# SaveManager V1.0.6 for Casualties: Unknown
+# SaveManager V1.0.7 for Casualties: Unknown
 
 > Multi-save, death rollback, and deterministic world mod for Casualties: Unknown
 > Compatible with: KrokMP multiplayer, QoL Unknown (their absence does not break core features)
@@ -12,7 +12,7 @@ On top of the vanilla single save, this mod adds file-level multi-save managemen
 Singleplayer is tested: saving and rollback both work.
 Multiplayer is tested on the host side and works.
 
-## What changed in 1.0.6
+## What changed in 1.0.7
 
 A systematic pass around the "deterministic world + rollback" core:
 

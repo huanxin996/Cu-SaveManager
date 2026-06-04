@@ -94,7 +94,10 @@ namespace CasualtiesUnknown.SaveManager
             try
             {
                 // 死亡判据先于倒计时刷新，确保 GameAutoRespawnGuard 先于游戏逻辑一帧。AutoRollbackOnDeath 关时不介入。
-                IsDeathSuspected = _cfg.AutoRollbackOnDeath.Value && IsDying();
+                IsDeathSuspected = _cfg.AutoRollbackOnDeath.Value
+                    && _state == RollbackState.Idle
+                    && !_deathHandledThisLife
+                    && IsDying();
                 if (_state == RollbackState.Counting) TickCountdown();
                 else if (_state == RollbackState.Idle) CheckDeathTrigger();
             }

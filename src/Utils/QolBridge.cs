@@ -136,12 +136,12 @@ namespace CasualtiesUnknown.SaveManager
             catch { }
             if (seed == 0)
             {
-                seed = ComputeFnv1a(SaveStore.GameSavePath);
+                seed = ComputeDeterministicSeedFromSaveFile(SaveStore.GameSavePath);
             }
         }
 
         /// <summary>FNV-1a 32 位 hash 当前 save.sv 字节流，与 QoL SeedManager.GetDeterministicSeedFromSaveFile 一致。</summary>
-        private static int ComputeFnv1a(string fullPath)
+        internal static int ComputeDeterministicSeedFromSaveFile(string fullPath)
         {
             try
             {
