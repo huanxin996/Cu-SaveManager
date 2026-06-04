@@ -58,6 +58,7 @@ namespace CasualtiesUnknown.SaveManager
 
         // 哪一条卡片处于昵称编辑态（path）。null = 没人在编辑。
         private string _nicknameEditingPath;
+        private bool _loggedDrawForCurrentOpen;
 
         internal bool Open { get; set; }
         internal Rect WindowRect => _rect;
@@ -67,6 +68,8 @@ namespace CasualtiesUnknown.SaveManager
         {
             if (Open) return;
             Open = true;
+            _loggedDrawForCurrentOpen = false;
+            ModLog.Info("SaveManagerWindow.OpenPanel -> Open=true");
             _onOpened?.Invoke();
         }
 
@@ -75,6 +78,7 @@ namespace CasualtiesUnknown.SaveManager
         {
             if (!Open) return;
             Open = false;
+            _loggedDrawForCurrentOpen = false;
             CancelKeyCapture();
             _onClosed?.Invoke();
         }
@@ -110,12 +114,26 @@ namespace CasualtiesUnknown.SaveManager
         internal void Draw()
         {
             if (!Open) return;
+            if (!_loggedDrawForCurrentOpen)
+            {
+                _loggedDrawForCurrentOpen = true;
+                ModLog.Info($"SaveManagerWindow.Draw active rect=({_rect.x:0},{_rect.y:0},{_rect.width:0},{_rect.height:0})");
+            }
             BlackWhiteSkin.Push();
             try
             {
                 // 用 ModalWindow 而非 Window：阻止外部点击穿透到下层 Canvas，
                 // 并且仅 GUI.DragWindow 指定矩形可拖，标题栏外的内容区不会被拖动。
                 _rect = GUI.ModalWindow(WindowId, _rect, DrawContent, "");
+            }
+            catch (ExitGUIException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warning($"SaveManagerWindow.Draw 失败：{ex}");
+                ClosePanel();
             }
             finally
             {
