@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using UnityEngine;
 
 namespace CasualtiesUnknown.SaveManager
 {
@@ -19,10 +20,14 @@ namespace CasualtiesUnknown.SaveManager
         private static FieldInfo _fAllLiving;         // NetPlayer.AllLivingPlayers (field)
         private static FieldInfo _fBodyToPlayer;      // NetPlayer.BodyToPlayerDict (field)
         private static MethodInfo _mAnnounceAlert;    // ServerMain.Server_AnnounceAlert(in string,bool,bool,IReadOnlyList<uint>)
-        private static MethodInfo _mGetPersistentId;  // NetPlayer.GetPersistentId() -> string
-        private static MethodInfo _mTeleportCharacter; // NetPlayer.Server_TeleportCharacter(Vector2)
+        private static MethodInfo _mLoadVanillaGeneratedWorld; // WorldgenPatches.LoadVanillaGeneratedWorld(bool)
+        private static MethodInfo _mGetPersistentId;           // NetPlayer.GetPersistentId()
+        private static MethodInfo _mTeleportCharacter;           // NetPlayer.Server_TeleportCharacter(Vector2)
+        private static Type _tNetPlayer;
+        private static Assembly _krokAssembly;
 
         private const BindingFlags AnyStatic = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        private const BindingFlags AnyInstance = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
         private static void TryResolve()
         {
@@ -41,8 +46,10 @@ namespace CasualtiesUnknown.SaveManager
                     ModLog.Info("MultiplayerBridge: 未找到 KrokoshaCasualtiesMP 程序集");
                     return;
                 }
+                _krokAssembly = krokoshaAsm;
                 tMP = krokoshaAsm.GetType("KrokoshaCasualtiesMP.KrokoshaScavMultiplayer");
                 tNetPlayer = krokoshaAsm.GetType("KrokoshaCasualtiesMP.NetPlayer");
+                _tNetPlayer = tNetPlayer;
                 tServerMain = krokoshaAsm.GetType("KrokoshaCasualtiesMP.ServerMain");
                 Type tPlugin = krokoshaAsm.GetType("KrokoshaCasualtiesMP.Plugin");
                 if (tPlugin != null)
@@ -57,10 +64,15 @@ namespace CasualtiesUnknown.SaveManager
                 {
                     _fAllLiving = tNetPlayer.GetField("AllLivingPlayers", AnyStatic);
                     _fBodyToPlayer = tNetPlayer.GetField("BodyToPlayerDict", AnyStatic);
-                    _mGetPersistentId = tNetPlayer.GetMethod("GetPersistentId",
-                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, Type.EmptyTypes, null);
+                    _mGetPersistentId = tNetPlayer.GetMethod("GetPersistentId", AnyInstance);
                     _mTeleportCharacter = tNetPlayer.GetMethod("Server_TeleportCharacter",
-                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                        BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(Vector2) }, null);
+                }
+                Type tWorldgenPatches = krokoshaAsm.GetType("KrokoshaCasualtiesMP.WorldgenPatches");
+                if (tWorldgenPatches != null)
+                {
+                    _mLoadVanillaGeneratedWorld = tWorldgenPatches.GetMethod("LoadVanillaGeneratedWorld",
+                        BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(bool) }, null);
                 }
                 if (tServerMain != null)
                 {
@@ -75,7 +87,7 @@ namespace CasualtiesUnknown.SaveManager
                         }
                     }
                 }
-                ModLog.Info($"MultiplayerBridge 已解析（running{(_mIsRunning != null ? "✓" : "✗")} / server{(_mIsServer != null ? "✓" : "✗")} / 广播{(_mAnnounceAlert != null ? "✓" : "✗")}）");
+                ModLog.Info($"MultiplayerBridge 已解析（running{(_mIsRunning != null ? "✓" : "✗")} / server{(_mIsServer != null ? "✓" : "✗")} / 广播{(_mAnnounceAlert != null ? "✓" : "✗")} / 继续游戏{(_mLoadVanillaGeneratedWorld != null ? "✓" : "✗")}）");
             }
             catch (Exception ex)
             {
@@ -130,6 +142,102 @@ namespace CasualtiesUnknown.SaveManager
             return _mIsServer != null && ReadStaticBool(_mIsServer);
         }
 
+        internal static Assembly GetKrokAssembly()
+        {
+            TryResolve();
+            return _krokAssembly;
+        }
+
+        /// <summary>本地玩家 KrokMP persistentId（如 STEAM_7656…），用于定位 mp_save 子目录。</summary>
+        internal static string GetLocalPersistentId()
+        {
+            TryResolve();
+            try
+            {
+                var body = PlayerCamera.main?.body;
+                if (body == null || _fBodyToPlayer == null || _mGetPersistentId == null) return null;
+                var dict = _fBodyToPlayer.GetValue(null) as System.Collections.IDictionary;
+                if (dict == null) return null;
+                foreach (System.Collections.DictionaryEntry kv in dict)
+                {
+                    if (kv.Key as Body != body || kv.Value == null) continue;
+                    return _mGetPersistentId.Invoke(kv.Value, null) as string;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>主机按 persistentId 将各玩家传送到回档坐标（含子端同步）。</summary>
+        internal static int RestorePlayerPositions(Dictionary<string, Vector2> positions)
+        {
+            TryResolve();
+            if (positions == null || positions.Count == 0) return 0;
+            if (!IsMultiplayerRunning() || !IsServer()) return 0;
+            if (_fBodyToPlayer == null || _mGetPersistentId == null || _mTeleportCharacter == null) return 0;
+            int n = 0;
+            try
+            {
+                var dict = _fBodyToPlayer.GetValue(null) as System.Collections.IDictionary;
+                if (dict == null) return 0;
+                foreach (System.Collections.DictionaryEntry entry in dict)
+                {
+                    var plr = entry.Value;
+                    if (plr == null) continue;
+                    string id = _mGetPersistentId.Invoke(plr, null) as string;
+                    if (string.IsNullOrEmpty(id) || !positions.TryGetValue(id, out Vector2 pos)) continue;
+                    _mTeleportCharacter.Invoke(plr, new object[] { pos });
+                    n++;
+                }
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warning($"RestorePlayerPositions 失败：{ex.Message}");
+            }
+            return n;
+        }
+
+        /// <summary>回档前触发 KrokMP SaveGame patch，把当前状态写入 mp_save（含各玩家子目录）。</summary>
+        internal static bool TrySaveMpGame()
+        {
+            return GameSaveBridge.TrySaveGame();
+        }
+
+        /// <summary>多人回档准备：krok 引擎无需额外写回，位置由 KrokMP LoadGame 逐人恢复；self 引擎由 WorldEngineArbiter 管种子。</summary>
+        internal static void PrepareMpRollback(SlotSidecar sidecar)
+        {
+            TryResolve();
+            if (sidecar == null) return;
+            if (WorldEngineArbiter.ResolveEffectiveEngineName(
+                    string.IsNullOrEmpty(sidecar.WorldEngine) ? sidecar.MpWorldEngine : sidecar.WorldEngine) != "krok")
+                return;
+            ModLog.Info("KrokMP 引擎：存档/位置交由联机 mod 继续游戏恢复");
+        }
+
+        /// <summary>反射调用 KrokMP WorldgenPatches.LoadVanillaGeneratedWorld(loadsave)，走联机 mod 原生读档继续游戏流程。</summary>
+        internal static bool TryLoadMultiplayerContinue(bool loadsave = true)
+        {
+            TryResolve();
+            try
+            {
+                if (!IsMultiplayerEnabled()) return false;
+                if (IsMultiplayerRunning() && !IsServer()) return false;
+                if (_mLoadVanillaGeneratedWorld == null)
+                {
+                    ModLog.Warning("TryLoadMultiplayerContinue：WorldgenPatches.LoadVanillaGeneratedWorld 未找到");
+                    return false;
+                }
+                _mLoadVanillaGeneratedWorld.Invoke(null, new object[] { loadsave });
+                ModLog.Info($"已通过 KrokMP LoadVanillaGeneratedWorld(loadsave:{loadsave}) 继续游戏");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warning($"TryLoadMultiplayerContinue 失败：{ex.Message}");
+                return false;
+            }
+        }
+
         /// <summary>当前已死亡玩家数 = BodyToPlayerDict.Count - AllLivingPlayers.Count。任一字段缺失返回 0。</summary>
         internal static int DeadPlayerCount()
         {
@@ -143,36 +251,6 @@ namespace CasualtiesUnknown.SaveManager
                 return Math.Max(0, all.Count - living.Count);
             }
             catch { return 0; }
-        }
-
-        /// <summary>把各玩家传送回保存位置（按 persistentId 匹配）。仅主机有效；返回成功写回的玩家数。
-        /// 用 KrokMP 的 Server_TeleportCharacter（自带向客户端同步），不重建角色不掉物品。</summary>
-        internal static int RestorePlayerPositions(Dictionary<string, UnityEngine.Vector2> byPersistentId)
-        {
-            TryResolve();
-            if (byPersistentId == null || byPersistentId.Count == 0) return 0;
-            if (_fBodyToPlayer == null || _mGetPersistentId == null || _mTeleportCharacter == null) return 0;
-            if (!IsMultiplayerRunning() || !IsServer()) return 0;
-            int applied = 0;
-            try
-            {
-                var dict = _fBodyToPlayer.GetValue(null) as System.Collections.IDictionary;
-                if (dict == null) return 0;
-                foreach (var player in dict.Values)
-                {
-                    if (player == null) continue;
-                    string pid = _mGetPersistentId.Invoke(player, null) as string;
-                    if (string.IsNullOrEmpty(pid)) continue;
-                    if (!byPersistentId.TryGetValue(pid, out var pos)) continue;
-                    _mTeleportCharacter.Invoke(player, new object[] { pos });
-                    applied++;
-                }
-            }
-            catch (Exception ex)
-            {
-                ModLog.Warning($"RestorePlayerPositions 失败：{ex.Message}");
-            }
-            return applied;
         }
 
         /// <summary>尝试通过 mp mod 广播屏幕中央大字提示。失败返回 false（外部应自行 fallback 调本地 DoAlert）。</summary>

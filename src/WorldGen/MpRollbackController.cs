@@ -7,7 +7,7 @@ namespace CasualtiesUnknown.SaveManager
     /// <summary>
     /// 多人回档两阶段触发：仅主机可用。
     /// 阶段一（游戏内）：mp_save 已被还原后，调 PlayerCamera.ToMainMenu 让全员回主菜单并置待回档标志。
-    /// 阶段二（回到主菜单）：PreRunScript.Start 后主机自动 LoadRun，KrokMP 重新加载被还原的 mp_save，全员重连进入。
+    /// 阶段二（回到主菜单）：PreRunScript.Start 后反射调用 KrokMP LoadVanillaGeneratedWorld(loadsave:true)，走联机 mod 原生继续游戏读档。
     /// </summary>
     internal static class MpRollbackController
     {
@@ -38,7 +38,7 @@ namespace CasualtiesUnknown.SaveManager
             }
         }
 
-        /// <summary>阶段二：主菜单 PreRunScript 就绪后调用。待回档且为主机时自动 LoadRun。</summary>
+        /// <summary>阶段二：主菜单 PreRunScript 就绪后调用。待回档且为主机时反射走 KrokMP 继续游戏。</summary>
         internal static void OnPreRunReady()
         {
             if (!_pendingHostReload) return;
@@ -50,14 +50,9 @@ namespace CasualtiesUnknown.SaveManager
             }
             try
             {
-                var pre = PreRunScript.instance;
-                if (pre == null)
-                {
-                    ModLog.Warning("PreRunScript.instance 为空，无法自动加载多人回档");
-                    return;
-                }
                 ModLog.Info(I18n.T("mp.rollback_reloading"));
-                pre.LoadRun();
+                if (!MultiplayerBridge.TryLoadMultiplayerContinue())
+                    ModLog.Warning("多人回档：KrokMP 继续游戏调用失败");
             }
             catch (Exception ex)
             {

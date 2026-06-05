@@ -81,8 +81,15 @@ namespace CasualtiesUnknown.SaveManager
             Open = false;
             _loggedDrawForCurrentOpen = false;
             CancelKeyCapture();
+            _nicknameEditingPath = null;
+            ImGuiImeRecovery.RequestClear();
             _onClosed?.Invoke();
         }
+
+        /// <summary>当前是否可能有 IMGUI 文本框持有键盘焦点。</summary>
+        internal bool ExpectsTextInput =>
+            Open && (_capturingSettingsKey || _capturingSlotsKey || _capturingQuickKey
+                     || !string.IsNullOrEmpty(_nicknameEditingPath));
 
         /// <summary>当前光标是否在主面板矩形内（被 UIUtilBlockPatch 用来阻止穿透到游戏）。</summary>
         internal bool IsCursorOver()
@@ -314,11 +321,15 @@ namespace CasualtiesUnknown.SaveManager
 
             GUILayout.EndVertical();
 
-            GUILayout.Space(12f);
-            GUILayout.Label(I18n.T("sec.world"), BlackWhiteSkin.HeaderStyle);
-            GUILayout.BeginVertical(BlackWhiteSkin.CardStyle);
-            DrawWorldGroup();
-            GUILayout.EndVertical();
+            if (QolBridge.IsQolPresent()
+                || (MultiplayerBridge.IsModPresent() && MultiplayerBridge.IsMultiplayerEnabled()))
+            {
+                GUILayout.Space(12f);
+                GUILayout.Label(I18n.T("sec.world"), BlackWhiteSkin.HeaderStyle);
+                GUILayout.BeginVertical(BlackWhiteSkin.CardStyle);
+                DrawWorldGroup();
+                GUILayout.EndVertical();
+            }
 
             GUILayout.Space(12f);
             GUILayout.Label(I18n.T("sec.hotkeys"), BlackWhiteSkin.HeaderStyle);
@@ -601,50 +612,80 @@ namespace CasualtiesUnknown.SaveManager
 
         // —— 控件 helpers —— //
 
-        /// <summary>固定世界设置组：引擎二选一 + 种子输入 + 位置模式二选一 + 固定坐标。改值即写配置并同步仲裁器。</summary>
+        /// <summary>固定世界：QoL / KrokMP / 本 mod 三选一（按 mod 安装情况显示按钮）+ 种子 + 位置。</summary>
         private void DrawWorldGroup()
         {
-            bool engineSelf = string.Equals(_cfg.PreferredEngine.Value, "self", StringComparison.OrdinalIgnoreCase);
             bool qolPresent = QolBridge.IsQolPresent();
+            bool krokPresent = MultiplayerBridge.IsModPresent() && MultiplayerBridge.IsMultiplayerEnabled();
+            string engine = WorldEngineArbiter.NormalizeEngineName(_cfg.PreferredEngine.Value);
+
             GUILayout.BeginHorizontal();
             GUILayout.Label(I18n.T("lbl.world_engine"),
                 GUILayout.MinWidth(LabelColW), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight));
-            GUILayout.Space(20f);
+            GUILayout.Space(12f);
             bool prevEnabled = GUI.enabled;
-            GUI.enabled = prevEnabled && qolPresent;
-            if (GUILayout.Button(I18n.T("opt.engine_qol"), engineSelf ? BlackWhiteSkin.TabStyle : BlackWhiteSkin.TabActiveStyle,
-                GUILayout.MinWidth(180f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+
+            if (qolPresent)
             {
-                _cfg.PreferredEngine.Value = "qol";
+                if (GUILayout.Button(I18n.T("opt.engine_qol"),
+                    engine == "qol" ? BlackWhiteSkin.TabActiveStyle : BlackWhiteSkin.TabStyle,
+                    GUILayout.MinWidth(160f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+                {
+                    _cfg.PreferredEngine.Value = "qol";
+                    engine = "qol";
+                }
+                GUILayout.Space(8f);
             }
-            GUI.enabled = prevEnabled;
-            GUILayout.Space(8f);
-            if (GUILayout.Button(I18n.T("opt.engine_self"), engineSelf ? BlackWhiteSkin.TabActiveStyle : BlackWhiteSkin.TabStyle,
-                GUILayout.MinWidth(180f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+
+            if (krokPresent)
+            {
+                if (GUILayout.Button(I18n.T("opt.engine_krok"),
+                    engine == "krok" ? BlackWhiteSkin.TabActiveStyle : BlackWhiteSkin.TabStyle,
+                    GUILayout.MinWidth(160f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
+                {
+                    _cfg.PreferredEngine.Value = "krok";
+                    engine = "krok";
+                }
+                GUILayout.Space(8f);
+            }
+
+            if (GUILayout.Button(I18n.T("opt.engine_self"),
+                engine == "self" ? BlackWhiteSkin.TabActiveStyle : BlackWhiteSkin.TabStyle,
+                GUILayout.MinWidth(160f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight)))
             {
                 _cfg.PreferredEngine.Value = "self";
+                engine = "self";
             }
+            GUI.enabled = prevEnabled;
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
-            if (!qolPresent)
+            GUILayout.Space(6f);
+
+            if (engine == "self")
+            {
+                _seedInputCache = _seedInputCache ?? _cfg.SeedInput.Value;
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(I18n.T("lbl.seed_input"),
+                    GUILayout.MinWidth(LabelColW), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight));
+                string newSeed = GUILayout.TextField(_seedInputCache ?? "",
+                    GUILayout.MinWidth(280f), GUILayout.ExpandWidth(true), GUILayout.MinHeight(RowMinHeight));
+                if (newSeed != _seedInputCache)
+                {
+                    _seedInputCache = newSeed;
+                    _cfg.SeedInput.Value = newSeed;
+                }
+                GUILayout.EndHorizontal();
+                GUILayout.Space(6f);
+            }
+
+            if (!qolPresent && !krokPresent)
             {
                 GUILayout.Label(I18n.T("hint.qol_absent"));
             }
-            GUILayout.Space(6f);
-
-            _seedInputCache = _seedInputCache ?? _cfg.SeedInput.Value;
-            GUILayout.BeginHorizontal();
-            GUILayout.Label(I18n.T("lbl.seed_input"),
-                GUILayout.MinWidth(LabelColW), GUILayout.ExpandWidth(false), GUILayout.MinHeight(RowMinHeight));
-            string newSeed = GUILayout.TextField(_seedInputCache ?? "",
-                GUILayout.MinWidth(280f), GUILayout.ExpandWidth(true), GUILayout.MinHeight(RowMinHeight));
-            if (newSeed != _seedInputCache)
+            else if (engine == "krok")
             {
-                _seedInputCache = newSeed;
-                _cfg.SeedInput.Value = newSeed;
+                GUILayout.Label(I18n.T("hint.mp_krok_engine"));
             }
-            GUILayout.EndHorizontal();
-            GUILayout.Space(6f);
 
             bool posFixed = string.Equals(_cfg.PositionMode.Value, "fixedPos", StringComparison.OrdinalIgnoreCase);
             GUILayout.BeginHorizontal();

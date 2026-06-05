@@ -57,20 +57,22 @@ namespace CasualtiesUnknown.SaveManager
 
         // —— 写 —— //
 
-        /// <summary>手动保存：复制当前 save.sv 到今天目录，写 sidecar；可指定昵称。返回路径或抛异常。</summary>
+        /// <summary>手动保存：复制当前 save.sv 到今天目录，写 sidecar；可指定昵称。返回路径或抛异常。
+        /// 调用前须已执行 SaveSystem.SaveGame()。</summary>
         internal string SaveManual(string nickname)
         {
-            var ctx = SnapshotGameContext();
+            var ctx = SnapshotGameContextFromSavedGame();
             PersistCurrentSaveForContinue(ctx);
             string path = WriteSlotFile(ctx, isAuto: false);
             BuildSidecar(ctx, nickname ?? "", isAuto: false).Save(path);
             return path;
         }
 
-        /// <summary>定时备份：复制并按 keep 份数滚动删除最旧的非 pinned 自动槽。</summary>
+        /// <summary>定时备份：复制并按 keep 份数滚动删除最旧的非 pinned 自动槽。
+        /// 调用前须已执行 SaveSystem.SaveGame()。</summary>
         internal string AutoBackup(int keep)
         {
-            var ctx = SnapshotGameContext();
+            var ctx = SnapshotGameContextFromSavedGame();
             PersistCurrentSaveForContinue(ctx);
             string path = WriteSlotFile(ctx, isAuto: true);
             BuildSidecar(ctx, "", isAuto: true).Save(path);
@@ -232,68 +234,24 @@ namespace CasualtiesUnknown.SaveManager
                 ModLog.Warning(I18n.T("mp.only_host_can_rollback"));
                 throw new InvalidOperationException(I18n.T("mp.only_host_can_rollback"));
             }
-            if (backupBefore && MpSaveLocator.HasMpSave())
+            if (backupBefore)
             {
-                var ctx = SnapshotGameContext();
-                string bakPath = WriteSlotFile(ctx, isAuto: false, prefix: "beforeLoad-");
-                BuildSidecar(ctx, I18n.T("lbl.before_load_alias"), isAuto: false).Save(bakPath);
+                MultiplayerBridge.TrySaveMpGame();
+                if (MpSaveLocator.HasMpSave())
+                {
+                    var ctx = SnapshotGameContext();
+                    string bakPath = WriteSlotFile(ctx, isAuto: false, prefix: "beforeLoad-");
+                    BuildSidecar(ctx, I18n.T("lbl.before_load_alias"), isAuto: false).Save(bakPath);
+                }
             }
             MpSaveLocator.RestoreMpSaveFrom(slotFullPath);
             var sidecar = SlotSidecar.LoadOrEmpty(slotFullPath);
-            WorldEngineArbiter.Apply(WorldEngine.Self, sidecar.QolSeed, sidecar.QolSeedInput);
-            var plrPos = ReadPlrPosFromMpRules();
-            if (plrPos.Count > 0)
-            {
-                MpPositionRestorer.SetPending(plrPos);
-                ModLog.Info($"多人回档：已缓存 {plrPos.Count} 名玩家的存档位置，待世界生成后写回");
-            }
+            PrepareWorldForSlot(sidecar);
+            WorldEngineArbiter.PrepareMpRollback(sidecar);
+            MultiplayerBridge.PrepareMpRollback(sidecar);
+            MpPositionRestorer.PrepareForRollback(sidecar);
+            ModLog.Info("多人回档：mp_save 已还原，继续游戏由 KrokMP 原生流程加载");
             MpRollbackController.TriggerHostReload();
-        }
-
-        /// <summary>从还原后的 mp_rules.json 读 PLRPOS（persistentId -> 坐标）。KrokMP 存了但加载不用，由本模组写回。</summary>
-        private static Dictionary<string, Vector2> ReadPlrPosFromMpRules()
-        {
-            var result = new Dictionary<string, Vector2>();
-            try
-            {
-                if (!File.Exists(MpSaveLocator.MpRulesPath)) return result;
-                string json = File.ReadAllText(MpSaveLocator.MpRulesPath);
-                int key = json.IndexOf("\"PLRPOS\"", StringComparison.Ordinal);
-                if (key < 0) return result;
-                int open = json.IndexOf('{', key);
-                if (open < 0) return result;
-                int depth = 0, end = -1;
-                for (int i = open; i < json.Length; i++)
-                {
-                    if (json[i] == '{') depth++;
-                    else if (json[i] == '}') { depth--; if (depth == 0) { end = i; break; } }
-                }
-                if (end < 0) return result;
-                string body = json.Substring(open + 1, end - open - 1);
-                int p = 0;
-                while (p < body.Length)
-                {
-                    int q1 = body.IndexOf('"', p);
-                    if (q1 < 0) break;
-                    int q2 = body.IndexOf('"', q1 + 1);
-                    if (q2 < 0) break;
-                    string pid = body.Substring(q1 + 1, q2 - q1 - 1);
-                    int sub = body.IndexOf('{', q2);
-                    if (sub < 0) break;
-                    int subEnd = body.IndexOf('}', sub);
-                    if (subEnd < 0) break;
-                    string inner = body.Substring(sub + 1, subEnd - sub - 1);
-                    float x = ParseTupleField(inner, "Item1");
-                    float y = ParseTupleField(inner, "Item2");
-                    result[pid] = new Vector2(x, y);
-                    p = subEnd + 1;
-                }
-            }
-            catch (Exception ex)
-            {
-                ModLog.Warning($"ReadPlrPosFromMpRules 失败：{ex.Message}");
-            }
-            return result;
         }
 
         private static float ParseTupleField(string inner, string field)
@@ -344,8 +302,14 @@ namespace CasualtiesUnknown.SaveManager
         internal void PrepareWorldForSlot(SlotSidecar sidecar)
         {
             if (sidecar == null) return;
-            bool wantSelf = string.Equals(sidecar.WorldEngine, "self", StringComparison.OrdinalIgnoreCase);
-            ModLog.Info($"回档引擎={(wantSelf ? "self" : "qol")} (sidecar.WorldEngine='{sidecar.WorldEngine}')");
+            string eff = WorldEngineArbiter.ResolveEffectiveEngineName(sidecar.WorldEngine);
+            if (eff == "krok")
+            {
+                ModLog.Warning("单机回档忽略 krok 引擎，回落 self");
+                eff = "self";
+            }
+            bool wantSelf = eff == "self";
+            ModLog.Info($"回档引擎={eff} (sidecar.WorldEngine='{sidecar.WorldEngine}')");
 
             if (wantSelf)
             {
@@ -473,7 +437,7 @@ namespace CasualtiesUnknown.SaveManager
 
         private static string ResolveCurrentPreferredEngineName()
         {
-            return WorldEngineArbiter.Resolve(WorldEngineArbiter.PreferQol) == WorldEngine.Self ? "self" : "qol";
+            return WorldEngineArbiter.ResolveEffectiveEngineName();
         }
 
         internal void DeleteSlot(string slotFullPath)
@@ -634,6 +598,48 @@ namespace CasualtiesUnknown.SaveManager
                 ModLog.Warning($"ReadBiomeFromSv: 处理 {fullPath} 异常 {ex.Message}");
                 return 0;
             }
+        }
+
+        /// <summary>
+        /// SaveGame 写入 biome=biomeDepth+1，TryLoadGame 直接赋给 biomeDepth。
+        /// 槽位/sidecar 统一存 0-based biomeDepth；从刚写完的 save.sv 解读，避免层间过渡时内存 depth 已递增。
+        /// </summary>
+        private static int BiomeDepthFromSaveFile(string fullPath)
+        {
+            int raw = ReadBiomeFromSv(fullPath);
+            if (raw <= 0)
+            {
+                try { return WorldGeneration.world?.biomeDepth ?? 0; }
+                catch { return 0; }
+            }
+            try
+            {
+                int live = WorldGeneration.world?.biomeDepth ?? -1;
+                if (live >= 0)
+                {
+                    if (raw == live) return live;
+                    if (raw == live + 1) return live;
+                }
+            }
+            catch { }
+            return Math.Max(0, raw - 1);
+        }
+
+        /// <summary>SaveGame 之后构造上下文：层数取自磁盘 save.sv，不用内存里可能已进下一层的 biomeDepth。</summary>
+        private GameContext SnapshotGameContextFromSavedGame()
+        {
+            var ctx = SnapshotGameContext();
+            string sv = ShouldUseMpSave() ? MpSaveLocator.ResolveLocalPlayerSavePath() : GameSavePath;
+            if (!string.IsNullOrEmpty(sv) && File.Exists(sv))
+            {
+                int depth = BiomeDepthFromSaveFile(sv);
+                ctx.Biome = depth;
+                int traveled = MpSaveLayerHelper.ReadTotalTraveledFromSv(sv);
+                ModLog.Info($"存档层数：path={sv} biomeDepth={depth} totalTraveled={traveled} rawBiome={ReadBiomeFromSv(sv)} liveDepth={WorldGeneration.world?.biomeDepth}");
+            }
+            if (ShouldUseMpSave())
+                MpSaveLayerHelper.NormalizeAfterSnapshot(ctx.Biome);
+            return ctx;
         }
 
         private static void NormalizeSaveBiome(string fullPath, int biome)
@@ -822,7 +828,7 @@ namespace CasualtiesUnknown.SaveManager
                 HasPlayerPos = hasPos,
                 QolSeed = qolSeed,
                 QolSeedInput = qolInput,
-                WorldEngine = WorldEngineArbiter.Current == WorldEngine.Self ? "self" : "qol",
+                WorldEngine = ResolveCurrentPreferredEngineName(),
             };
         }
 

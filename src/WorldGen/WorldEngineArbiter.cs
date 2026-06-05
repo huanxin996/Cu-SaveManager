@@ -1,32 +1,31 @@
 namespace CasualtiesUnknown.SaveManager
 {
-    /// <summary>固定世界生成引擎：交给 QoL，或用 saveManager 自身实现。</summary>
+    /// <summary>固定世界生成引擎：QoL / KrokMP / 本 mod。</summary>
     internal enum WorldEngine
     {
         Qol,
+        Krok,
         Self,
     }
 
     /// <summary>
     /// 决定当前 run 用哪套固定世界引擎并落实。
-    /// 选 Self 时暂时禁用 QoL 的世界 / 存档介入；选 Qol 时停掉自身引擎把控制权交给 QoL。
-    /// QoL 不在场时强制回落 Self。
+    /// PreferredEngine 配置值：qol | krok | self；按 mod 是否在场回落。
     /// </summary>
     internal static class WorldEngineArbiter
     {
         internal static WorldEngine Current { get; private set; } = WorldEngine.Self;
 
-        internal static bool PreferQol { get; private set; } = true;
+        internal static string PreferredEngine { get; private set; } = "qol";
         internal static string ManualSeedInput { get; private set; } = "";
         internal static string PositionMode { get; private set; } = "lastPos";
         internal static float FixedX { get; private set; }
         internal static float FixedY { get; private set; }
 
-        /// <summary>同步面板/配置里的引擎偏好、手动种子与位置模式，供新开局 patch 与 sidecar 写入读取。</summary>
         internal static void SyncPreference(string preferredEngine, string manualSeed,
             string positionMode = null, float fixedX = 0f, float fixedY = 0f)
         {
-            PreferQol = !string.Equals(preferredEngine, "self", System.StringComparison.OrdinalIgnoreCase);
+            PreferredEngine = NormalizeEngineName(preferredEngine);
             ManualSeedInput = manualSeed ?? "";
             if (positionMode != null)
             {
@@ -36,33 +35,78 @@ namespace CasualtiesUnknown.SaveManager
             }
         }
 
-        /// <summary>新开局（非读档）按偏好启用引擎：self 引擎无条件确定化（手动种子优先，否则自生成）。</summary>
+        internal static string NormalizeEngineName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "self";
+            name = name.Trim().ToLowerInvariant();
+            return name == "qol" || name == "krok" ? name : "self";
+        }
+
+        /// <summary>按配置 + mod 在场情况解析实际引擎名。</summary>
+        internal static string ResolveEffectiveEngineName(string preferred = null)
+        {
+            string pref = NormalizeEngineName(preferred ?? PreferredEngine);
+            if (pref == "krok" && MultiplayerBridge.IsMultiplayerEnabled()) return "krok";
+            if (pref == "qol" && QolBridge.IsQolPresent()) return "qol";
+            return "self";
+        }
+
+        internal static WorldEngine ResolveEffectiveEngine(string preferred = null)
+        {
+            string name = ResolveEffectiveEngineName(preferred);
+            if (name == "krok") return WorldEngine.Krok;
+            if (name == "qol") return WorldEngine.Qol;
+            return WorldEngine.Self;
+        }
+
+        /// <summary>新开局（非读档）按偏好启用引擎。</summary>
         internal static void ApplyForFreshRun()
         {
-            var engine = Resolve(PreferQol);
+            var engine = ResolveEffectiveEngine();
+            if (engine == WorldEngine.Krok)
+            {
+                SeededWorldEngine.Deactivate();
+                QolBridge.DisableQolIntervention();
+                Current = WorldEngine.Krok;
+                ModLog.Info("固定世界引擎=KrokMP（原生世界生成）");
+                return;
+            }
             if (engine == WorldEngine.Self)
             {
                 QolBridge.DisableQolIntervention();
                 if (!string.IsNullOrWhiteSpace(ManualSeedInput)) SeededWorldEngine.SetManualSeed(ManualSeedInput);
                 else SeededWorldEngine.EnsureFreshSeed();
                 Current = WorldEngine.Self;
+                return;
             }
-            else
+            SeededWorldEngine.Deactivate();
+            QolBridge.EnsureQolSeeded();
+            Current = WorldEngine.Qol;
+        }
+
+        /// <summary>多人回档前按 sidecar 选定引擎准备。</summary>
+        internal static void PrepareMpRollback(SlotSidecar sidecar)
+        {
+            string engine = ResolveSidecarEngine(sidecar);
+            ModLog.Info($"多人回档引擎={engine} (sidecar.worldEngine='{sidecar?.WorldEngine}')");
+            if (engine == "krok")
             {
                 SeededWorldEngine.Deactivate();
-                QolBridge.EnsureQolSeeded();
-                Current = engine;
+                Current = WorldEngine.Krok;
+                return;
             }
+            Apply(WorldEngine.Self, sidecar?.QolSeed ?? 0, sidecar?.QolSeedInput ?? "");
         }
 
-        /// <summary>按用户偏好仲裁出实际引擎：preferQol 且 QoL 在场才用 Qol，否则用 Self。</summary>
-        internal static WorldEngine Resolve(bool preferQol)
+        private static string ResolveSidecarEngine(SlotSidecar sidecar)
         {
-            bool qol = QolBridge.IsQolPresent();
-            return (preferQol && qol) ? WorldEngine.Qol : WorldEngine.Self;
+            if (!string.IsNullOrEmpty(sidecar?.WorldEngine))
+                return ResolveEffectiveEngineName(sidecar.WorldEngine);
+            if (!string.IsNullOrEmpty(sidecar?.MpWorldEngine))
+                return ResolveEffectiveEngineName(sidecar.MpWorldEngine);
+            return ResolveEffectiveEngineName();
         }
 
-        /// <summary>启用指定引擎：Self 用给定种子接手并暂时禁用 QoL；Qol 停自身引擎交给 QoL。</summary>
         internal static void Apply(WorldEngine engine, int seed, string seedInput)
         {
             Current = engine;

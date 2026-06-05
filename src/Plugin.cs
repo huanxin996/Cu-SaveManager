@@ -10,11 +10,12 @@ namespace CasualtiesUnknown.SaveManager
     /// 处理快捷键分发、定时备份调度。具体能力放在各专职文件里。
     /// </summary>
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
+    [BepInDependency("KrokoshaCasualtiesMP", BepInDependency.DependencyFlags.SoftDependency)]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string PluginGuid = "com.casualtiesUnknown.saveManager";
         private const string PluginName = "SaveManager";
-        private const string PluginVersion = "1.0.7";
+        private const string PluginVersion = "1.0.8";
 
         private static ManualLogSource _log;
         private static Plugin _instance;
@@ -72,6 +73,8 @@ namespace CasualtiesUnknown.SaveManager
             ModLog.Info(MultiplayerBridge.IsModPresent() ? I18n.T("mp.mod_detected") : I18n.T("mp.mod_not_detected"));
             ModLog.Info(QolBridge.IsQolPresent() ? I18n.T("qol.mod_detected") : I18n.T("qol.mod_not_detected"));
             MpWorldSeedInjector.TryPatch();
+            MpRollbackRunner.Ensure(this);
+            MpPositionRestorer.TryPatchHarmony();
             gameObject.AddComponent<UpdateChecker>();
         }
 
@@ -90,6 +93,18 @@ namespace CasualtiesUnknown.SaveManager
             if (_quitting) return;
             UiBlocker.EnforceBlocked();
             _rollback.Tick();
+
+            if (_cfg.AutoBackupEnabled.Value && Time.unscaledTime >= _nextAutoBackupAt)
+            {
+                DoAutoBackup();
+                ResetAutoBackupTimer();
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (_quitting) return;
+            ImGuiImeRecovery.TickUpdate(_window.ExpectsTextInput);
 
             if (HotkeyConfig.TriggeredThisFrame(_cfg.ToggleSlotsHotkey))
             {
@@ -111,17 +126,12 @@ namespace CasualtiesUnknown.SaveManager
             {
                 SaveManual("");
             }
-
-            if (_cfg.AutoBackupEnabled.Value && Time.unscaledTime >= _nextAutoBackupAt)
-            {
-                DoAutoBackup();
-                ResetAutoBackupTimer();
-            }
         }
 
         private void OnGUI()
         {
             if (_quitting) return;
+            ImGuiImeRecovery.TickOnGui(_window.ExpectsTextInput);
             _overlay.Draw(() => _window.OpenPanel());
             _window.Draw();
         }
@@ -143,7 +153,15 @@ namespace CasualtiesUnknown.SaveManager
                     SetMessage(I18n.T("mp.client_cannot_save"));
                     return;
                 }
-                GameSaveBridge.TrySaveGame();
+                if (!GameSaveBridge.CanSnapshotCurrentLayer())
+                {
+                    SetMessage(I18n.T("msg.save_layer_transition"));
+                    return;
+                }
+                if (MultiplayerBridge.IsMultiplayerRunning())
+                    MultiplayerBridge.TrySaveMpGame();
+                else
+                    GameSaveBridge.TrySaveGame();
                 string path = _store.SaveManual(nickname);
                 SetMessage(I18n.F("fmt.saved_to", System.IO.Path.GetFileName(path), SaveStore.CurrentSaveDisplayPath));
             }
@@ -164,6 +182,11 @@ namespace CasualtiesUnknown.SaveManager
                     ModLog.Info(I18n.T("mp.client_skip_autosave"));
                     return;
                 }
+                if (!GameSaveBridge.CanSnapshotCurrentLayer())
+                {
+                    ModLog.Info(I18n.T("msg.save_skip_layer_transition"));
+                    return;
+                }
                 // 先调 SaveSystem.SaveGame 让游戏把内存里的物品 / 装备 / 状态写到 save.sv，
                 // 否则槽位拷的是上一次进层的旧快照，回档会丢身上的物品。
                 GameSaveBridge.TrySaveGame();
@@ -180,16 +203,30 @@ namespace CasualtiesUnknown.SaveManager
         {
             try
             {
-                if (MultiplayerBridge.IsMultiplayerRunning())
-                {
-                    SetMessage(I18n.T("msg.save_exit_singleplayer_only"));
-                    return;
-                }
                 if (PlayerCamera.main == null || PlayerCamera.main.body == null || WorldGeneration.world == null)
                 {
                     SetMessage(I18n.T("msg.save_exit_unavailable"));
                     return;
                 }
+
+                if (MultiplayerBridge.IsMultiplayerRunning())
+                {
+                    if (!MultiplayerBridge.IsServer())
+                    {
+                        SetMessage(I18n.T("mp.client_cannot_save"));
+                        return;
+                    }
+                    if (!MultiplayerBridge.TrySaveMpGame())
+                    {
+                        SetMessage(I18n.T("msg.save_exit_unavailable"));
+                        return;
+                    }
+                    _window.ClosePanel();
+                    PlayerCamera.main.ToMainMenu();
+                    SetMessage(I18n.T("msg.save_exit_mp_done"));
+                    return;
+                }
+
                 if (!GameSaveBridge.TrySaveGame())
                 {
                     SetMessage(I18n.T("msg.save_exit_unavailable"));

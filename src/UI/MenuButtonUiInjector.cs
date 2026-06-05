@@ -31,6 +31,7 @@ namespace CasualtiesUnknown.SaveManager
                 _harmony = new Harmony("com.casualtiesUnknown.saveManager.menuButton");
                 _harmony.PatchAll(typeof(MenuButtonUiInjector).Assembly);
                 SeededWorldPatcher.TryPatch(_harmony);
+                KrokLoadRunReplacer.TryPatch(_harmony);
             }
             catch (Exception ex)
             {
@@ -66,6 +67,7 @@ namespace CasualtiesUnknown.SaveManager
         {
             try
             {
+                KrokLoadRunReplacer.TryPatch(_harmony);
                 InjectOnce(pre);
             }
             catch (Exception ex)

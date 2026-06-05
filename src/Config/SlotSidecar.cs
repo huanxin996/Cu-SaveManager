@@ -31,8 +31,10 @@ namespace CasualtiesUnknown.SaveManager
 
         // —— 固定世界 / 位置模式 ——
         //    WorldEngine: "qol" | "self"，标识该存档世界由哪套引擎生成，两套不可互转。
+        //    MpWorldEngine: "krok" | "self"，多人存档的世界/位置由 KrokMP 或本 mod 种子注入。
         //    PosMode: "lastPos"（回保存时坐标）| "fixedPos"（回 FixedX/FixedY）。
         internal string WorldEngine { get; set; } = "";
+        internal string MpWorldEngine { get; set; } = "";
         internal string PosMode { get; set; } = "";
         internal float FixedX { get; set; }
         internal float FixedY { get; set; }
@@ -94,6 +96,7 @@ namespace CasualtiesUnknown.SaveManager
             sb.Append("\"qolSeed\":").Append(QolSeed.ToString()).Append(',');
             sb.Append("\"qolSeedInput\":").Append(EscapeJsonString(QolSeedInput)).Append(',');
             sb.Append("\"worldEngine\":").Append(EscapeJsonString(WorldEngine)).Append(',');
+            sb.Append("\"mpWorldEngine\":").Append(EscapeJsonString(MpWorldEngine)).Append(',');
             sb.Append("\"posMode\":").Append(EscapeJsonString(PosMode)).Append(',');
             sb.Append("\"fixedX\":").Append(FixedX.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
             sb.Append("\"fixedY\":").Append(FixedY.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
@@ -121,6 +124,7 @@ namespace CasualtiesUnknown.SaveManager
             s.QolSeed = ReadInt(text, "qolSeed");
             s.QolSeedInput = ReadString(text, "qolSeedInput") ?? "";
             s.WorldEngine = ReadString(text, "worldEngine") ?? "";
+            s.MpWorldEngine = ReadString(text, "mpWorldEngine") ?? "";
             s.PosMode = ReadString(text, "posMode") ?? "";
             s.FixedX = ReadFloat(text, "fixedX");
             s.FixedY = ReadFloat(text, "fixedY");

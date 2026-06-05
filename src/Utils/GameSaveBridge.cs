@@ -1,4 +1,5 @@
 using System;
+using HarmonyLib;
 
 namespace CasualtiesUnknown.SaveManager
 {
@@ -25,5 +26,23 @@ namespace CasualtiesUnknown.SaveManager
                 return false;
             }
         }
+
+        /// <summary>世界正在进下一层（RegenerateWorld）：此时 biomeDepth 已递增，不能作为当前层快照依据。</summary>
+        internal static bool IsWorldRegenerating()
+        {
+            try
+            {
+                var world = WorldGeneration.world;
+                if (world == null) return false;
+                if (world.generatingWorld) return true;
+                var f = AccessTools.Field(typeof(WorldGeneration), "doingRegen");
+                if (f != null && f.GetValue(world) is bool doing && doing) return true;
+            }
+            catch { }
+            return false;
+        }
+
+        internal static bool CanSnapshotCurrentLayer()
+            => !IsWorldRegenerating();
     }
 }

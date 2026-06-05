@@ -69,7 +69,7 @@ namespace CasualtiesUnknown.SaveManager
                     new AcceptableValueRange<int>(5, 100)));
 
             PreferredEngine = config.Bind("World", "PreferredEngine", "qol",
-                "固定世界生成引擎偏好：qol=优先用 QoL（不在场则回落 self）；self=用本 mod 自身引擎并暂时禁用 QoL。");
+                "固定世界生成引擎：qol=QoL；krok=KrokMP（需联机 mod 启用）；self=本 mod。不在场时回落 self。");
             SeedInput = config.Bind("World", "SeedInput", "",
                 "自身引擎种子。留空时从存档字节自动派生（FNV-1a）；填数字或文本则按手动种子。仅 self 引擎生效。");
             PositionMode = config.Bind("World", "PositionMode", "lastPos",

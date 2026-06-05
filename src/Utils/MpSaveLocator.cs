@@ -37,6 +37,32 @@ namespace CasualtiesUnknown.SaveManager
             ZipFile.CreateFromDirectory(MpSaveDir, destZipPath, System.IO.Compression.CompressionLevel.Optimal, includeBaseDirectory: false);
         }
 
+        /// <summary>本地玩家 save.sv：mp_save/&lt;persistentId&gt;/save.sv（KrokMP 实际写入路径）。</summary>
+        internal static string ResolveLocalPlayerSavePath()
+        {
+            try
+            {
+                string id = MultiplayerBridge.GetLocalPersistentId();
+                if (!string.IsNullOrEmpty(id))
+                {
+                    string p = Path.Combine(MpSaveDir, id, "save.sv");
+                    if (File.Exists(p)) return p;
+                }
+                if (Directory.Exists(MpSaveDir))
+                {
+                    foreach (var dir in Directory.GetDirectories(MpSaveDir))
+                    {
+                        string p = Path.Combine(dir, "save.sv");
+                        if (File.Exists(p)) return p;
+                    }
+                }
+                string root = Path.Combine(MpSaveDir, "save.sv");
+                if (File.Exists(root)) return root;
+            }
+            catch { }
+            return null;
+        }
+
         /// <summary>用 zip 包覆盖还原 mp_save 目录（先清空再解包）。</summary>
         internal static void RestoreMpSaveFrom(string srcZipPath)
         {

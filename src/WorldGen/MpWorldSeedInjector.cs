@@ -46,6 +46,11 @@ namespace CasualtiesUnknown.SaveManager
 
         private static void CtorPrefix()
         {
+            if (WorldEngineArbiter.Current == WorldEngine.Krok)
+            {
+                ModLog.Info("多人世界种子注入跳过：引擎=KrokMP");
+                return;
+            }
             bool active = SeededWorldEngine.IsActive;
             bool server = MultiplayerBridge.IsServer();
             if (!active || !server)
@@ -53,9 +58,15 @@ namespace CasualtiesUnknown.SaveManager
                 ModLog.Info($"多人世界种子注入跳过：selfActive={active} isServer={server}");
                 return;
             }
-            int seed = SeededWorldEngine.LayerSeed();
+            int traveled = MpSaveLayerHelper.ReadPersistedTotalTraveled();
+            if (traveled == 0)
+            {
+                try { if (WorldGeneration.world != null) traveled = WorldGeneration.world.totalTraveled; }
+                catch { }
+            }
+            int seed = SeededWorldEngine.CurrentSeed + traveled * 265443576;
             UnityEngine.Random.InitState(seed);
-            ModLog.Info($"多人世界种子注入：seed={seed}");
+            ModLog.Info($"多人世界种子注入：seed={seed} totalTraveled={traveled}");
         }
     }
 }
