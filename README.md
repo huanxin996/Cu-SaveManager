@@ -1,4 +1,4 @@
-# SaveManager V1.0.7 for Casualties: Unknown
+# SaveManager V1.0.8 for Casualties: Unknown
 
 > 适配游戏《未知伤亡》的多存档、死亡回档与固定世界模组
 > 兼容：KrokMP 多人模式、QoL Unknown（缺少不影响基础功能）
@@ -11,6 +11,10 @@ English guide: see [README.en.md](README.en.md)
 
 目前以测试单人模式下的，保存回档均正常
 多人测试主机测试正常。
+
+## 1.0.8
+
+- 修复在面板文本框（昵称、种子等）用过中文输入法之后，本模组快捷键和快捷栏按键都不响应的问题。关面板后会清掉 IMGUI 残留的键盘焦点。
 
 ## 本次重构（1.0.7）
 

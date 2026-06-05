@@ -1,4 +1,4 @@
-# SaveManager V1.0.7 for Casualties: Unknown
+# SaveManager V1.0.8 for Casualties: Unknown
 
 > Multi-save, death rollback, and deterministic world mod for Casualties: Unknown
 > Compatible with: KrokMP multiplayer, QoL Unknown (their absence does not break core features)
@@ -11,6 +11,10 @@ On top of the vanilla single save, this mod adds file-level multi-save managemen
 
 Singleplayer is tested: saving and rollback both work.
 Multiplayer is tested on the host side and works.
+
+## 1.0.8
+
+- Fixed hotkeys (this mod and CuHotbar) stopping after Chinese IME input in panel text fields (nickname, seed, etc.). Closing the panel clears the stuck IMGUI keyboard focus.
 
 ## What changed in 1.0.7
 
