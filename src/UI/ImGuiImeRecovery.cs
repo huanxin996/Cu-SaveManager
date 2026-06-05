@@ -13,20 +13,17 @@ namespace CasualtiesUnknown.SaveManager
 
         internal static void RequestClear() => _pendingClear = true;
 
-        /// <summary>Update / LateUpdate：无文本输入需求时标记待清除。</summary>
+        /// <summary>Update / LateUpdate：仅在本面板关闭时由 <see cref="RequestClear"/> 标记待清除。</summary>
         internal static void TickUpdate(bool textInputExpected)
         {
-            if (textInputExpected) return;
-            if (_pendingClear || GUIUtility.keyboardControl != 0 || Input.imeIsSelected)
-                _pendingClear = true;
+            if (textInputExpected) _pendingClear = false;
         }
 
         /// <summary>OnGUI：在 Layout 阶段执行 <see cref="GUI.FocusControl"/>。</summary>
         internal static void TickOnGui(bool textInputExpected)
         {
             if (textInputExpected) return;
-            if (!_pendingClear && GUIUtility.keyboardControl == 0 && !Input.imeIsSelected)
-                return;
+            if (!_pendingClear) return;
 
             var ev = Event.current;
             if (ev == null || ev.type != EventType.Layout) return;

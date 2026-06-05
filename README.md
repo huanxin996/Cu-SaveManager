@@ -1,4 +1,4 @@
-# SaveManager V1.0.8 for Casualties: Unknown
+# SaveManager V1.0.9 for Casualties: Unknown
 
 > 适配游戏《未知伤亡》的多存档、死亡回档与固定世界模组
 > 兼容：KrokMP 多人模式、QoL Unknown（缺少不影响基础功能）
@@ -11,6 +11,10 @@ English guide: see [README.en.md](README.en.md)
 
 目前以测试单人模式下的，保存回档均正常
 多人测试主机测试正常。
+
+## 1.0.9
+
+- 修复 `ImGuiImeRecovery` 在面板关闭后仍因外部 IMGUI（如 KrokMP 多人连接页）有焦点就清 `FocusControl`，导致 IP/用户名字段无法输入的问题；现仅在面板关闭时 `RequestClear()` 才回收焦点。
 
 ## 1.0.8
 

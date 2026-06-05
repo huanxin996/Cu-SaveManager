@@ -1,4 +1,4 @@
-# SaveManager V1.0.8 for Casualties: Unknown
+# SaveManager V1.0.9 for Casualties: Unknown
 
 > Multi-save, death rollback, and deterministic world mod for Casualties: Unknown
 > Compatible with: KrokMP multiplayer, QoL Unknown (their absence does not break core features)
@@ -11,6 +11,10 @@ On top of the vanilla single save, this mod adds file-level multi-save managemen
 
 Singleplayer is tested: saving and rollback both work.
 Multiplayer is tested on the host side and works.
+
+## 1.0.9
+
+- Fixed `ImGuiImeRecovery` clearing `FocusControl` while external IMGUI (e.g. KrokMP connection form) had keyboard focus, blocking IP/username input; focus is now cleared only when this panel closes via `RequestClear()`.
 
 ## 1.0.8
 
