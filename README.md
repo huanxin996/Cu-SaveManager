@@ -1,4 +1,4 @@
-# SaveManager V1.0.9 for Casualties: Unknown
+# SaveManager V1.1.0 for Casualties: Unknown
 
 > 适配游戏《未知伤亡》的多存档、死亡回档与固定世界模组
 > 兼容：KrokMP 多人模式、QoL Unknown（缺少不影响基础功能）
@@ -11,6 +11,12 @@ English guide: see [README.en.md](README.en.md)
 
 目前以测试单人模式下的，保存回档均正常
 多人测试主机测试正常。
+
+## 1.1.0
+
+- 主面板按屏幕分辨率整体等比缩放，超大设计尺寸不再超出屏幕；保留边距、可拖动，命中检测随缩放校正。
+- 读档 / 回档时从存档恢复游戏难度（RunSettings），修复单机与多人重新读档后自定义难度变默认的问题。
+- 修复面板缩放后右上角 X 关闭图标显示异常。
 
 ## 1.0.9
 

@@ -98,6 +98,7 @@ namespace CasualtiesUnknown.SaveManager
             }
 
             ModLog.Info("LoadRun：Net.running=false，反射 LoadVanillaGeneratedWorld(loadsave:true)");
+            RunSettingsBridge.RestoreFromSaveFile(MpSaveLocator.ResolveLocalPlayerSavePath());
             MultiplayerBridge.TryLoadMultiplayerContinue(loadsave: true);
             return false;
         }
@@ -131,6 +132,8 @@ namespace CasualtiesUnknown.SaveManager
                 return false;
             }
             ModLog.Info($"LoadRun：Net.running=true，走 KrokMP LoadVanillaGeneratedWorld(loadsave:{loadsave})");
+            if (loadsave)
+                RunSettingsBridge.RestoreFromSaveFile(MpSaveLocator.ResolveLocalPlayerSavePath());
             MultiplayerBridge.TryLoadMultiplayerContinue(loadsave);
             return false;
         }

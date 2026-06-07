@@ -302,6 +302,9 @@ namespace CasualtiesUnknown.SaveManager
         internal void PrepareWorldForSlot(SlotSidecar sidecar)
         {
             if (sidecar == null) return;
+            RunSettingsBridge.RestoreFromSaveFile(sidecar.IsMultiplayer
+                ? MpSaveLocator.ResolveLocalPlayerSavePath()
+                : GameSavePath);
             string eff = WorldEngineArbiter.ResolveEffectiveEngineName(sidecar.WorldEngine);
             if (eff == "krok")
             {

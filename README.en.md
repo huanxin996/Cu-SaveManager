@@ -1,4 +1,4 @@
-# SaveManager V1.0.9 for Casualties: Unknown
+# SaveManager V1.1.0 for Casualties: Unknown
 
 > Multi-save, death rollback, and deterministic world mod for Casualties: Unknown
 > Compatible with: KrokMP multiplayer, QoL Unknown (their absence does not break core features)
@@ -11,6 +11,12 @@ On top of the vanilla single save, this mod adds file-level multi-save managemen
 
 Singleplayer is tested: saving and rollback both work.
 Multiplayer is tested on the host side and works.
+
+## 1.1.0
+
+- The main panel now scales uniformly to the screen resolution, so the oversized design no longer overflows; margins are kept, dragging works, and hit-testing is corrected for the scale.
+- Game difficulty (RunSettings) is restored from the save on load/rollback, fixing custom difficulty reverting to default after reloading in both singleplayer and multiplayer.
+- Fixed the top-right X close icon rendering wrong when the panel is scaled.
 
 ## 1.0.9
 

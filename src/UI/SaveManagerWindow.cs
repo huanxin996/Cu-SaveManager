@@ -33,6 +33,7 @@ namespace CasualtiesUnknown.SaveManager
         private readonly RollbackTabView _rollbackTab;
 
         private Rect _rect = new Rect(120f, 60f, WindowWidth, WindowHeight);
+        private float _drawScale = 1f;
         private int _tab; // 0 = 设置 / 1 = 存档
         private Vector2 _scroll;
 
@@ -62,7 +63,7 @@ namespace CasualtiesUnknown.SaveManager
         private bool _loggedDrawForCurrentOpen;
 
         internal bool Open { get; set; }
-        internal Rect WindowRect => _rect;
+        internal Rect WindowRect => new Rect(_rect.x * _drawScale, _rect.y * _drawScale, _rect.width * _drawScale, _rect.height * _drawScale);
 
         /// <summary>由外部 (UI 注入按钮 / 快捷键) 打开面板。除了置 Open=true，还触发一次性副作用（如关 ESC 暂停面板防穿透）。</summary>
         internal void OpenPanel()
@@ -97,7 +98,9 @@ namespace CasualtiesUnknown.SaveManager
             if (!Open) return false;
             // IMGUI 坐标 Y 朝下，Input.mousePosition Y 朝上，需要换算
             var mouse = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
-            return _rect.Contains(mouse);
+            var screenRect = new Rect(_rect.x * _drawScale, _rect.y * _drawScale,
+                _rect.width * _drawScale, _rect.height * _drawScale);
+            return screenRect.Contains(mouse);
         }
 
         internal SaveManagerWindow(HotkeyConfig cfg, SaveStore store,
@@ -123,16 +126,25 @@ namespace CasualtiesUnknown.SaveManager
         internal void Draw()
         {
             if (!Open) return;
+            _drawScale = ComputeScale();
             if (!_loggedDrawForCurrentOpen)
             {
                 _loggedDrawForCurrentOpen = true;
-                ModLog.Info($"SaveManagerWindow.Draw active rect=({_rect.x:0},{_rect.y:0},{_rect.width:0},{_rect.height:0})");
+                ModLog.Info($"SaveManagerWindow.Draw screen=({Screen.width}x{Screen.height}) scale={_drawScale:F3} rect=({_rect.x:0},{_rect.y:0},{_rect.width:0},{_rect.height:0})");
             }
+            _rect.width = WindowWidth;
+            _rect.height = WindowHeight;
+            float maxX = Mathf.Max(0f, Screen.width / _drawScale - WindowWidth);
+            float maxY = Mathf.Max(0f, Screen.height / _drawScale - WindowHeight);
+            _rect.x = Mathf.Clamp(_rect.x, 0f, maxX);
+            _rect.y = Mathf.Clamp(_rect.y, 0f, maxY);
+
             BlackWhiteSkin.Push();
+            Matrix4x4 prev = GUI.matrix;
             try
             {
-                // 用 ModalWindow 而非 Window：阻止外部点击穿透到下层 Canvas，
-                // 并且仅 GUI.DragWindow 指定矩形可拖，标题栏外的内容区不会被拖动。
+                // 顶层 GUI.matrix 缩放：IMGUI 用此 matrix 同时画窗口框与回调内容，整体等比缩
+                GUI.matrix = Matrix4x4.Scale(new Vector3(_drawScale, _drawScale, 1f));
                 _rect = GUI.ModalWindow(WindowId, _rect, DrawContent, "");
             }
             catch (ExitGUIException)
@@ -146,8 +158,16 @@ namespace CasualtiesUnknown.SaveManager
             }
             finally
             {
+                GUI.matrix = prev;
                 BlackWhiteSkin.Pop();
             }
+        }
+
+        /// <summary>按屏幕尺寸算缩放比，使窗口不超出屏幕；屏幕足够大时不放大（上限 1）。</summary>
+        private static float ComputeScale()
+        {
+            float fit = Mathf.Min(Screen.width / WindowWidth, Screen.height / WindowHeight) * 0.92f;
+            return Mathf.Clamp(fit, 0.3f, 1f);
         }
 
         internal void CancelKeyCapture()
