@@ -368,6 +368,8 @@ namespace CasualtiesUnknown.SaveManager
             GUILayout.BeginVertical(BlackWhiteSkin.CardStyle);
             bool newShowLog = DrawSwitch(I18n.T("sw.show_log_in_console"), _cfg.ShowLogInConsole.Value);
             if (newShowLog != _cfg.ShowLogInConsole.Value) _cfg.ShowLogInConsole.Value = newShowLog;
+            bool newSuppressSupplies = DrawSwitch(I18n.T("sw.suppress_starting_supplies_on_load"), _cfg.SuppressStartingSuppliesOnLoad.Value);
+            if (newSuppressSupplies != _cfg.SuppressStartingSuppliesOnLoad.Value) _cfg.SuppressStartingSuppliesOnLoad.Value = newSuppressSupplies;
             bool newAcceptUpdate = DrawSwitch(I18n.T("sw.accept_update_notice"), _cfg.AcceptUpdateNotice.Value);
             if (newAcceptUpdate != _cfg.AcceptUpdateNotice.Value)
             {

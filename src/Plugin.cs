@@ -45,6 +45,9 @@ namespace CasualtiesUnknown.SaveManager
             ModLog.ShowInConsole = _cfg.ShowLogInConsole.Value;
             _cfg.ShowLogInConsole.SettingChanged += (_, __) => ModLog.ShowInConsole = _cfg.ShowLogInConsole.Value;
             UpdateChecker.Enabled = _cfg.AcceptUpdateNotice.Value;
+            StartingSuppliesOnLoadGuardPatch.Enabled = _cfg.SuppressStartingSuppliesOnLoad.Value;
+            _cfg.SuppressStartingSuppliesOnLoad.SettingChanged += (_, __)
+                => StartingSuppliesOnLoadGuardPatch.Enabled = _cfg.SuppressStartingSuppliesOnLoad.Value;
             WorldEngineArbiter.SyncPreference(_cfg.PreferredEngine.Value, _cfg.SeedInput.Value,
                 _cfg.PositionMode.Value, _cfg.FixedX.Value, _cfg.FixedY.Value);
             _store = new SaveStore();
