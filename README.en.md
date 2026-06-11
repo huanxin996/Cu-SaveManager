@@ -1,4 +1,4 @@
-# SaveManager V1.1.0 for Casualties: Unknown
+# SaveManager V1.1.1 for Casualties: Unknown
 
 > Multi-save, death rollback, and deterministic world mod for Casualties: Unknown
 > Compatible with: KrokMP multiplayer, QoL Unknown (their absence does not break core features)
@@ -11,6 +11,10 @@ On top of the vanilla single save, this mod adds file-level multi-save managemen
 
 Singleplayer is tested: saving and rollback both work.
 Multiplayer is tested on the host side and works.
+
+## 1.1.1
+
+- Fixed the game re-handing out starting supplies (emergency light, or lantern + dogfood + waterbottle + trashbag) every time you reload or roll back to layer 1. The game's `WorldGeneration.WorldPlacePlayer` has no `loadedRun` guard, so it reissues whatever `runSettings["startingsupplies"]` says on every layer-1 generation. Added a "Skip starting supplies on load" toggle (Settings → Misc, on by default); turn it off to restore vanilla behaviour.
 
 ## 1.1.0
 
@@ -75,6 +79,7 @@ Once enabled under Settings → Auto Rollback on Death, dying starts a countdown
 |--------|-------------|
 | Show mod logs in game console | Mirrors mod logs to the ` console |
 | Accept update notifications | Checks GitHub for a new release on startup and notifies in-game |
+| Skip starting supplies on load | Fixes a vanilla bug: stops layer-1 reload/rollback from reissuing emergency light or the full starter kit per `startingsupplies`. Turn off to keep vanilla behaviour |
 
 ## Soft dependencies
 

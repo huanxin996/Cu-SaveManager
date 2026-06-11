@@ -1,4 +1,4 @@
-# SaveManager V1.1.0 for Casualties: Unknown
+# SaveManager V1.1.1 for Casualties: Unknown
 
 > 适配游戏《未知伤亡》的多存档、死亡回档与固定世界模组
 > 兼容：KrokMP 多人模式、QoL Unknown（缺少不影响基础功能）
@@ -11,6 +11,10 @@ English guide: see [README.en.md](README.en.md)
 
 目前以测试单人模式下的，保存回档均正常
 多人测试主机测试正常。
+
+## 1.1.1
+
+- 修复读档/回档时游戏在第 1 层重新派发起始物资（应急灯或灯笼+狗粮+水瓶+垃圾袋）的问题；游戏 `WorldGeneration.WorldPlacePlayer` 自身没有读档守卫，每次回档第 1 层都会按 `runSettings["startingsupplies"]` 重发。新增「读档时不重发起始物资」开关（设置 → 其他，默认开启），关闭后回到游戏原版行为。
 
 ## 1.1.0
 
@@ -75,6 +79,7 @@ English guide: see [README.en.md](README.en.md)
 |------|------|
 | 在游戏控制台显示模组日志 | 开启后模组日志同步打印到 ` 键控制台 |
 | 接受新版本更新提示 | 开启后启动时检查 GitHub 新版并在游戏内提示 |
+| 读档时不重发起始物资 | 修复游戏 bug：读档/回档到第 1 层时不再按 `startingsupplies` 重发应急灯或全套基础物资。关闭则保留游戏原版行为 |
 
 ## 软依赖说明
 

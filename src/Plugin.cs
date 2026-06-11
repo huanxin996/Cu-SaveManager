@@ -15,7 +15,7 @@ namespace CasualtiesUnknown.SaveManager
     {
         private const string PluginGuid = "com.casualtiesUnknown.saveManager";
         private const string PluginName = "SaveManager";
-        private const string PluginVersion = "1.1.0";
+        private const string PluginVersion = "1.1.1";
 
         private static ManualLogSource _log;
         private static Plugin _instance;
