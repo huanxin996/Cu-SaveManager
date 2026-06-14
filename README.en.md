@@ -1,4 +1,4 @@
-# SaveManager V1.1.1 for Casualties: Unknown
+# CuSaveManager V1.1.2 for Casualties: Unknown
 
 > Multi-save, death rollback, and deterministic world mod for Casualties: Unknown
 > Compatible with: KrokMP multiplayer, QoL Unknown (their absence does not break core features)
@@ -12,58 +12,30 @@ On top of the vanilla single save, this mod adds file-level multi-save managemen
 Singleplayer is tested: saving and rollback both work.
 Multiplayer is tested on the host side and works.
 
-## 1.1.2
+## Changelog
 
-- Sidebar of the main panel now has an "About" tab, in the same SkinSync-style centered title + link buttons + name buttons layout, showing version / repo / latest release / author / dependencies.
-- Settings → "Misc" section gains a UI language switch (auto / Chinese / English); written to `I18n.PreferredLanguage` in the config file and persisted across restarts. Language detection now uses a three-tier fallback (config → game Locale keyword match → PlayerPrefs).
-- Aligned the semi-transparent background with the other sidebar-embedded mods (HwAssistive previously rendered noticeably darker; brought back to the saveManager baseline), so switching sidebar tabs no longer flickers between two shades of black.
-
-## 1.1.1
-
-- Fixed the game re-handing out starting supplies (emergency light, or lantern + dogfood + waterbottle + trashbag) every time you reload or roll back to layer 1. The game's `WorldGeneration.WorldPlacePlayer` has no `loadedRun` guard, so it reissues whatever `runSettings["startingsupplies"]` says on every layer-1 generation. Added a "Skip starting supplies on load" toggle (Settings → Misc, on by default); turn it off to restore vanilla behaviour.
-
-## 1.1.0
-
-- The main panel now scales uniformly to the screen resolution, so the oversized design no longer overflows; margins are kept, dragging works, and hit-testing is corrected for the scale.
-- Game difficulty (RunSettings) is restored from the save on load/rollback, fixing custom difficulty reverting to default after reloading in both singleplayer and multiplayer.
-- Fixed the top-right X close icon rendering wrong when the panel is scaled.
-
-## 1.0.9
-
-- Fixed `ImGuiImeRecovery` clearing `FocusControl` while external IMGUI (e.g. KrokMP connection form) had keyboard focus, blocking IP/username input; focus is now cleared only when this panel closes via `RequestClear()`.
-
-## 1.0.8
-
-- Fixed hotkeys (this mod and CuHotbar) stopping after Chinese IME input in panel text fields (nickname, seed, etc.). Closing the panel clears the stuck IMGUI keyboard focus.
-
-## What changed in 1.0.7
-
-A systematic pass around the "deterministic world + rollback" core:
-
-- **Pick a world engine**: choose `QoL (preferred)` or `This mod` in the panel. With QoL it defers world determinism to QoL; with this mod its own engine takes over and temporarily disables QoL's world involvement. When QoL is not installed, the `QoL` button is disabled and only this mod's engine is available.
-- **Multiplayer support**: a multiplayer save is packed as a slot from KrokMP's whole `mp_save` directory; rollback uses the host's two-stage reload (return to main menu, then auto-reload), and everyone reconnects into the backup point.
-- **Unified logging**: all logs go through one sink; enable "Show mod logs in game console" in settings to view them in the console opened with the ` key.
-- **Update check**: compares against the latest GitHub release on startup and shows a red notice at the top-left when a new version exists; can be turned off in settings.
+Full release history lives in [changes.en.md](changes.en.md) (中文：[changes.md](changes.md)). Builds are published at [Releases](https://github.com/huanxin996/Cu-SaveManager/releases).
 
 ## How to use
 
 ### Install
 
-Place the `SaveManager` folder under `BepInEx/plugins/`, containing:
+Place the `CuSaveManager` folder under `BepInEx/plugins/`, containing:
 
-- `SaveManager.dll`
+- `CuSaveManager.dll`
 
 After launch, a "Save Manager" button is injected on the main menu; in-game you can open the panel via that button or a hotkey.
 
 ### Panel
 
-The panel has three tabs:
+The panel has four tabs:
 
 | Tab | Purpose |
 |------|---------|
 | Settings | Auto-backup interval/count, death rollback, world engine and seed, position mode, hotkeys, misc |
 | Saves | Browse all slots (grouped by run/date), manual save, load, delete |
 | Rollback | View recent slots and roll back now; the death-rollback countdown is also cancelled here |
+| About | Version, repo, author, dependencies |
 
 ### Deterministic world
 
@@ -86,6 +58,7 @@ Once enabled under Settings → Auto Rollback on Death, dying starts a countdown
 | Show mod logs in game console | Mirrors mod logs to the ` console |
 | Accept update notifications | Checks GitHub for a new release on startup and notifies in-game |
 | Skip starting supplies on load | Fixes a vanilla bug: stops layer-1 reload/rollback from reissuing emergency light or the full starter kit per `startingsupplies`. Turn off to keep vanilla behaviour |
+| UI language | Auto / Chinese / English; auto picks by game Locale keyword |
 
 ## Soft dependencies
 
@@ -97,3 +70,4 @@ Once enabled under Settings → Auto Rollback on Death, dying starts a countdown
 
 - [CasualtiesUnknown-SkinEditor](https://github.com/huanxin996/CasualtiesUnknown-SkinEditor): live preview and animation preview.
 - [huanxin996/Cu-Hotbar](https://github.com/huanxin996/Cu-Hotbar): customizable hotbar with item swapping and quick-use.
+- [huanxin996/Cu-Stats](https://github.com/huanxin996/Cu-Stats): block / item / combat / movement / kill statistics panel.

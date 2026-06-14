@@ -1,4 +1,4 @@
-# SaveManager V1.1.1 for Casualties: Unknown
+# CuSaveManager V1.1.2 for Casualties: Unknown
 
 > 适配游戏《未知伤亡》的多存档、死亡回档与固定世界模组
 > 兼容：KrokMP 多人模式、QoL Unknown（缺少不影响基础功能）
@@ -12,58 +12,30 @@ English guide: see [README.en.md](README.en.md)
 目前以测试单人模式下的，保存回档均正常
 多人测试主机测试正常。
 
-## 1.1.2
+## 更新日志
 
-- 主面板侧栏新增「关于」分页：与 SkinSync 同款居中标题 + 链接按钮 + 名字按钮风格，列出版本号 / 仓库 / 最新发布 / 作者 / 依赖。
-- 设置 →「其他」区段加「界面语言」三档切换（自动 / 中文 / English）；写入配置文件 `I18n.PreferredLanguage`，重启游戏后保留。语言判定升级为三层兜底（配置 → 游戏 Locale 关键词识别 → PlayerPrefs）。
-- 与其他嵌入侧栏的 mod 统一半透明底色（HwAssistive 之前底色明显偏深，本轮对齐到 saveManager 标准），切换侧栏分页时主区底色不再跳变。
-
-## 1.1.1
-
-- 修复读档/回档时游戏在第 1 层重新派发起始物资（应急灯或灯笼+狗粮+水瓶+垃圾袋）的问题；游戏 `WorldGeneration.WorldPlacePlayer` 自身没有读档守卫，每次回档第 1 层都会按 `runSettings["startingsupplies"]` 重发。新增「读档时不重发起始物资」开关（设置 → 其他，默认开启），关闭后回到游戏原版行为。
-
-## 1.1.0
-
-- 主面板按屏幕分辨率整体等比缩放，超大设计尺寸不再超出屏幕；保留边距、可拖动，命中检测随缩放校正。
-- 读档 / 回档时从存档恢复游戏难度（RunSettings），修复单机与多人重新读档后自定义难度变默认的问题。
-- 修复面板缩放后右上角 X 关闭图标显示异常。
-
-## 1.0.9
-
-- 修复 `ImGuiImeRecovery` 在面板关闭后仍因外部 IMGUI（如 KrokMP 多人连接页）有焦点就清 `FocusControl`，导致 IP/用户名字段无法输入的问题；现仅在面板关闭时 `RequestClear()` 才回收焦点。
-
-## 1.0.8
-
-- 修复在面板文本框（昵称、种子等）用过中文输入法之后，本模组快捷键和快捷栏按键都不响应的问题。关面板后会清掉 IMGUI 残留的键盘焦点。
-
-## 本次重构（1.0.7）
-
-围绕"固定世界 + 回档"这条主线做了一轮系统性整理：
-
-- **固定世界引擎二选一**：面板可选「QoL（优先）」或「本 mod」。选 QoL 时把世界确定化交给 QoL；选本 mod 时由自带引擎接管并暂时禁用 QoL 的世界介入。未安装 QoL 时「QoL」按钮禁用，只能用本 mod 引擎。
-- **多人支持**：多人存档按 KrokMP 的 `mp_save` 目录整体打包为槽位；回档由主机两阶段重载（返回主菜单 → 自动重新加载），全员重连进入备份点。
-- **统一日志**：所有日志收敛到统一出口，可在设置里开启「在游戏控制台显示模组日志」，按 ` 键打开的控制台即可查看。
-- **更新检测**：启动时比对 GitHub 最新版本，有新版在屏幕左上角红字提示；可在设置里关闭。
+完整变更记录见 [changes.md](changes.md)（English: [changes.en.md](changes.en.md)）。最新发布在 [Releases](https://github.com/huanxin996/Cu-SaveManager/releases) 页面。
 
 ## 使用方法
 
 ### 安装
 
-把 `SaveManager` 文件夹放到 `BepInEx/plugins/` 下，内含：
+把 `CuSaveManager` 文件夹放到 `BepInEx/plugins/` 下，内含：
 
-- `SaveManager.dll`
+- `CuSaveManager.dll`
 
 启动游戏后，主菜单会注入「存档管理」按钮；游戏内可用快捷键或该按钮打开面板。
 
 ### 面板
 
-面板分三个标签页：
+面板分四个标签页：
 
 | 标签 | 用途 |
 |------|------|
 | 设置 | 自动备份间隔/份数、死亡回档、固定世界引擎与种子、位置模式、快捷键、杂项 |
 | 存档 | 浏览全部槽位（按冒险/日期分组），手动保存、读取、删除 |
 | 回档 | 查看最近槽位并立即回档；死亡回档倒计时也在此取消 |
+| 关于 | 版本、仓库、作者、依赖 |
 
 ### 固定世界
 
@@ -86,6 +58,7 @@ English guide: see [README.en.md](README.en.md)
 | 在游戏控制台显示模组日志 | 开启后模组日志同步打印到 ` 键控制台 |
 | 接受新版本更新提示 | 开启后启动时检查 GitHub 新版并在游戏内提示 |
 | 读档时不重发起始物资 | 修复游戏 bug：读档/回档到第 1 层时不再按 `startingsupplies` 重发应急灯或全套基础物资。关闭则保留游戏原版行为 |
+| 界面语言 | 自动 / 中文 / English 三档；自动按游戏 Locale 关键词识别 |
 
 ## 软依赖说明
 
@@ -97,4 +70,4 @@ English guide: see [README.en.md](README.en.md)
 
 - [CasualtiesUnknown-SkinEditor 皮肤编辑器](https://github.com/huanxin996/CasualtiesUnknown-SkinEditor)：支持实时预览与动画预览。
 - [huanxin996/Cu-Hotbar](https://github.com/huanxin996/Cu-Hotbar): 可自定义的快捷栏，支持物品交换和快速使用。
-  
+- [huanxin996/Cu-Stats](https://github.com/huanxin996/Cu-Stats)：方块 / 物品 / 战斗 / 移动 / 击杀统计面板。
