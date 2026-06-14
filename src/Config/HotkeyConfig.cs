@@ -37,6 +37,7 @@ namespace CasualtiesUnknown.SaveManager
         internal ConfigEntry<bool> ShowLogInConsole { get; }
         internal ConfigEntry<bool> AcceptUpdateNotice { get; }
         internal ConfigEntry<bool> SuppressStartingSuppliesOnLoad { get; }
+        internal ConfigEntry<bool> SuppressIntroLifepodOnLoad { get; }
         internal ConfigEntry<string> PreferredLanguage { get; }
 
         internal HotkeyConfig(ConfigFile config)
@@ -84,6 +85,8 @@ namespace CasualtiesUnknown.SaveManager
                 "是否在启动时检查 GitHub 新版本并在游戏内提示。关闭则不检测不提示。");
             SuppressStartingSuppliesOnLoad = config.Bind("Misc", "SuppressStartingSuppliesOnLoad", true,
                 "读档/回档时屏蔽起始物资重发。游戏 WorldPlacePlayer 在第 1 层无 loadedRun 守卫，回档时会按 startingsupplies 重发 emergencylight 或 lantern+dogfood+waterbottle+trashbag。关闭以保留游戏原版行为。");
+            SuppressIntroLifepodOnLoad = config.Bind("Misc", "SuppressIntroLifepodOnLoad", true,
+                "读档/回档时屏蔽初始 Lifepod 救生舱重新生成。游戏 WorldPlacePlayer 在第 1 层会无条件 GenerateEntityAtPos(Lifepod) 入场仓，回档时会再生成一份。关闭以保留游戏原版行为。");
             PreferredLanguage = config.Bind("I18n", "PreferredLanguage", "auto",
                 "界面语言：auto=跟随游戏；zh=强制中文；en=强制英文。该值会写入配置文件并在重启后保留。");
         }

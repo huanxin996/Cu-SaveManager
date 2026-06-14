@@ -12,6 +12,12 @@ On top of the vanilla single save, this mod adds file-level multi-save managemen
 Singleplayer is tested: saving and rollback both work.
 Multiplayer is tested on the host side and works.
 
+## 1.1.2
+
+- Sidebar of the main panel now has an "About" tab, in the same SkinSync-style centered title + link buttons + name buttons layout, showing version / repo / latest release / author / dependencies.
+- Settings → "Misc" section gains a UI language switch (auto / Chinese / English); written to `I18n.PreferredLanguage` in the config file and persisted across restarts. Language detection now uses a three-tier fallback (config → game Locale keyword match → PlayerPrefs).
+- Aligned the semi-transparent background with the other sidebar-embedded mods (HwAssistive previously rendered noticeably darker; brought back to the saveManager baseline), so switching sidebar tabs no longer flickers between two shades of black.
+
 ## 1.1.1
 
 - Fixed the game re-handing out starting supplies (emergency light, or lantern + dogfood + waterbottle + trashbag) every time you reload or roll back to layer 1. The game's `WorldGeneration.WorldPlacePlayer` has no `loadedRun` guard, so it reissues whatever `runSettings["startingsupplies"]` says on every layer-1 generation. Added a "Skip starting supplies on load" toggle (Settings → Misc, on by default); turn it off to restore vanilla behaviour.

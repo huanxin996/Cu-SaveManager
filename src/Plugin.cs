@@ -14,8 +14,8 @@ namespace CasualtiesUnknown.SaveManager
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string PluginGuid = "com.casualtiesUnknown.saveManager";
-        private const string PluginName = "SaveManager";
-        private const string PluginVersion = "1.1.1";
+        private const string PluginName = "CuSaveManager";
+        internal const string PluginVersion = "1.1.2";
 
         private static ManualLogSource _log;
         private static Plugin _instance;
@@ -48,6 +48,9 @@ namespace CasualtiesUnknown.SaveManager
             StartingSuppliesOnLoadGuardPatch.Enabled = _cfg.SuppressStartingSuppliesOnLoad.Value;
             _cfg.SuppressStartingSuppliesOnLoad.SettingChanged += (_, __)
                 => StartingSuppliesOnLoadGuardPatch.Enabled = _cfg.SuppressStartingSuppliesOnLoad.Value;
+            IntroLifepodOnLoadGuardPatch.Enabled = _cfg.SuppressIntroLifepodOnLoad.Value;
+            _cfg.SuppressIntroLifepodOnLoad.SettingChanged += (_, __)
+                => IntroLifepodOnLoadGuardPatch.Enabled = _cfg.SuppressIntroLifepodOnLoad.Value;
             WorldEngineArbiter.SyncPreference(_cfg.PreferredEngine.Value, _cfg.SeedInput.Value,
                 _cfg.PositionMode.Value, _cfg.FixedX.Value, _cfg.FixedY.Value);
             _store = new SaveStore();

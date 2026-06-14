@@ -83,7 +83,19 @@ namespace CasualtiesUnknown.SaveManager
         [HarmonyPrefix]
         private static bool Prefix()
         {
-            return !UiBlocker.IsBlocking;
+            if (!UiBlocker.IsBlocking) return true;
+            // UI 阻挡期间吞掉游戏的 ESC / 移动 / 攻击等输入，但仍让眼睛跟随鼠标
+            // （原版 HandleInput 每帧设置 targetLookPos，整体吞掉会导致视线卡死）。
+            try
+            {
+                if ((ConsoleScript.instance == null || !ConsoleScript.instance.active)
+                    && PlayerCamera.main != null && PlayerCamera.main.body != null && Camera.main != null)
+                {
+                    PlayerCamera.main.body.targetLookPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+                }
+            }
+            catch { }
+            return false;
         }
     }
 }

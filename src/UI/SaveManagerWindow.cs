@@ -34,7 +34,8 @@ namespace CasualtiesUnknown.SaveManager
 
         private Rect _rect = new Rect(120f, 60f, WindowWidth, WindowHeight);
         private float _drawScale = 1f;
-        private int _tab; // 0 = 设置 / 1 = 存档
+        private int _tab; // saveManager 自身子 tab：0 设置 / 1 槽位 / 2 回滚
+        private int _sideIdx; // 侧栏：0 saveManager 自身，1+ 外部 mod
         private Vector2 _scroll;
 
         // 立即保存的昵称输入
@@ -201,41 +202,97 @@ namespace CasualtiesUnknown.SaveManager
             // 标题栏下方分隔
             BlackWhiteSkin.DrawHLine(new Rect(0f, TitleBarHeight, WindowWidth, 4f));
 
-            // tab 区
-            DrawTabs();
-            // tab 下方分隔
-            BlackWhiteSkin.DrawHLine(new Rect(0f, TitleBarHeight + 84f, WindowWidth, 4f));
+            const float SidebarWidth = 240f;
+            const float SidebarLeftPad = 28f;
+            const float SidebarRightPad = 12f;
+            const float StatusBarH = 60f;
+            float bodyTop = TitleBarHeight + 12f;
+            float bodyH = WindowHeight - bodyTop - StatusBarH;
 
-            // 主体（留出底部 60：状态条）
-            float bodyTop = TitleBarHeight + 96f;
-            float statusH = 60f;
-            var bodyRect = new Rect(24f, bodyTop, WindowWidth - 48f, WindowHeight - bodyTop - statusH);
-            GUILayout.BeginArea(bodyRect);
-            if (_tab == 0) DrawSettingsTab();
-            else if (_tab == 1) DrawSlotsTab();
-            else if (_tab == 2) _rollbackTab.Draw();
-            else DrawExternalTab(_tab - 3);
-            GUILayout.EndArea();
+            DrawSidebar(new Rect(SidebarLeftPad, bodyTop, SidebarWidth, bodyH));
+
+            float dividerX = SidebarLeftPad + SidebarWidth + SidebarRightPad;
+            float mainX = dividerX + 16f;
+            float mainW = WindowWidth - mainX - 16f;
+            var mainRect = new Rect(mainX, bodyTop, mainW, bodyH);
+
+            BlackWhiteSkin.DrawHLine(new Rect(dividerX, bodyTop, 4f, bodyH));
+
+            if (_sideIdx == 0) DrawSelfTabs(mainRect);
+            else DrawExternal(mainRect, _sideIdx - 1);
 
             // 状态条 + 上方分隔线
-            BlackWhiteSkin.DrawHLine(new Rect(0f, WindowHeight - statusH, WindowWidth, 4f));
-            string status = _getStatus?.Invoke() ?? "";
-            GUI.Label(new Rect(28f, WindowHeight - statusH + 16f, WindowWidth - 56f, 32f), status);
+            BlackWhiteSkin.DrawHLine(new Rect(0f, WindowHeight - StatusBarH, WindowWidth, 4f));
+            string status = ResolveStatus();
+            GUI.Label(new Rect(28f, WindowHeight - StatusBarH + 16f, WindowWidth - 56f, 32f), status);
 
             GUI.DragWindow(new Rect(0f, 0f, WindowWidth - CloseBtnSize - 24f, TitleBarHeight));
         }
 
-        private void DrawTabs()
+        private string ResolveStatus()
         {
-            float tabW = 240f, tabH = 64f, top = TitleBarHeight + 14f;
-            DrawTabButton(new Rect(28f, top, tabW, tabH), I18n.T("tab.settings"), 0);
-            DrawTabButton(new Rect(28f + (tabW + 16f) * 1f, top, tabW, tabH), I18n.T("tab.slots"), 1);
-            DrawTabButton(new Rect(28f + (tabW + 16f) * 2f, top, tabW, tabH), I18n.T("tab.rollback"), 2);
+            if (_sideIdx == 0) return _getStatus?.Invoke() ?? "";
             var ext = ExternalTabRegistry.Entries;
-            for (int i = 0; i < ext.Count; i++)
+            int idx = _sideIdx - 1;
+            if (idx < 0 || idx >= ext.Count) return "";
+            return ext[idx].Status;
+        }
+
+        private void DrawSidebar(Rect area)
+        {
+            float btnH = 64f;
+            float gap = 8f;
+            float topPad = 8f;
+            var ext = ExternalTabRegistry.Entries;
+            int total = 1 + ext.Count;
+            for (int i = 0; i < total; i++)
             {
-                DrawTabButton(new Rect(28f + (tabW + 16f) * (3 + i), top, tabW, tabH), ext[i].Title, 3 + i);
+                var rect = new Rect(area.x, area.y + topPad + i * (btnH + gap), area.width, btnH);
+                string label = i == 0 ? I18n.T("app.name") : ext[i - 1].Title;
+                var style = i == _sideIdx ? BlackWhiteSkin.TabActiveStyle : BlackWhiteSkin.TabStyle;
+                if (GUI.Button(rect, label, style))
+                {
+                    _sideIdx = i;
+                    CancelKeyCapture();
+                }
             }
+        }
+
+        private void DrawSelfTabs(Rect mainRect)
+        {
+            const float TabRowH = 64f;
+            DrawSelfTabBar(new Rect(mainRect.x, mainRect.y, mainRect.width, TabRowH));
+            BlackWhiteSkin.DrawHLine(new Rect(mainRect.x, mainRect.y + TabRowH + 14f, mainRect.width, 4f));
+            float bodyTop = mainRect.y + TabRowH + 26f;
+            var bodyRect = new Rect(mainRect.x, bodyTop, mainRect.width, mainRect.height - (bodyTop - mainRect.y));
+            GUILayout.BeginArea(bodyRect);
+            if (_tab == 0) DrawSettingsTab();
+            else if (_tab == 1) DrawSlotsTab();
+            else if (_tab == 2) _rollbackTab.Draw();
+            else if (_tab == 3) DrawAboutTab();
+            GUILayout.EndArea();
+        }
+
+        private void DrawSelfTabBar(Rect rowRect)
+        {
+            const float gap = 12f;
+            float tabW = (rowRect.width - gap * 3f) / 4f;
+            DrawTabButton(new Rect(rowRect.x, rowRect.y, tabW, rowRect.height), I18n.T("tab.settings"), 0);
+            DrawTabButton(new Rect(rowRect.x + (tabW + gap), rowRect.y, tabW, rowRect.height), I18n.T("tab.slots"), 1);
+            DrawTabButton(new Rect(rowRect.x + (tabW + gap) * 2f, rowRect.y, tabW, rowRect.height), I18n.T("tab.rollback"), 2);
+            DrawTabButton(new Rect(rowRect.x + (tabW + gap) * 3f, rowRect.y, tabW, rowRect.height), I18n.T("tab.about"), 3);
+        }
+
+        private void DrawExternal(Rect mainRect, int extIdx)
+        {
+            var ext = ExternalTabRegistry.Entries;
+            if (extIdx < 0 || extIdx >= ext.Count) { _sideIdx = 0; return; }
+            const float Pad = 20f;
+            var inner = new Rect(mainRect.x + Pad, mainRect.y + Pad, mainRect.width - Pad * 2f, mainRect.height - Pad * 2f);
+            GUILayout.BeginArea(inner);
+            try { ext[extIdx].Draw?.Invoke(); }
+            catch (Exception ex) { GUILayout.Label("external tab error: " + ex.Message); }
+            GUILayout.EndArea();
         }
 
         private void DrawTabButton(Rect rect, string label, int idx)
@@ -249,22 +306,6 @@ namespace CasualtiesUnknown.SaveManager
         }
 
         private Vector2 _externalScroll;
-
-        /// <summary>绘制第 index 个外部注册分页；委托异常被吞掉以隔离外部 mod 故障。</summary>
-        private void DrawExternalTab(int index)
-        {
-            var ext = ExternalTabRegistry.Entries;
-            if (index < 0 || index >= ext.Count)
-            {
-                _tab = 0;
-                return;
-            }
-            _externalScroll = GUILayout.BeginScrollView(_externalScroll,
-                GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
-            try { ext[index].Draw?.Invoke(); }
-            catch (Exception ex) { GUILayout.Label("external tab error: " + ex.Message); }
-            GUILayout.EndScrollView();
-        }
 
         // —— 设置页 —— //
 
@@ -370,6 +411,9 @@ namespace CasualtiesUnknown.SaveManager
             if (newShowLog != _cfg.ShowLogInConsole.Value) _cfg.ShowLogInConsole.Value = newShowLog;
             bool newSuppressSupplies = DrawSwitch(I18n.T("sw.suppress_starting_supplies_on_load"), _cfg.SuppressStartingSuppliesOnLoad.Value);
             if (newSuppressSupplies != _cfg.SuppressStartingSuppliesOnLoad.Value) _cfg.SuppressStartingSuppliesOnLoad.Value = newSuppressSupplies;
+
+            bool newSuppressLifepod = DrawSwitch(I18n.T("sw.suppress_intro_lifepod_on_load"), _cfg.SuppressIntroLifepodOnLoad.Value);
+            if (newSuppressLifepod != _cfg.SuppressIntroLifepodOnLoad.Value) _cfg.SuppressIntroLifepodOnLoad.Value = newSuppressLifepod;
             bool newAcceptUpdate = DrawSwitch(I18n.T("sw.accept_update_notice"), _cfg.AcceptUpdateNotice.Value);
             if (newAcceptUpdate != _cfg.AcceptUpdateNotice.Value)
             {
@@ -381,6 +425,90 @@ namespace CasualtiesUnknown.SaveManager
 
             GUILayout.Space(20f);
             GUILayout.EndScrollView();
+        }
+
+        // —— 关于页 —— //
+
+        private Vector2 _aboutScroll;
+
+        private void DrawAboutTab()
+        {
+            _aboutScroll = GUILayout.BeginScrollView(_aboutScroll,
+                GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+
+            GUILayout.Space(12f);
+            GUILayout.Label(I18n.T("about.title"), CenterTitleStyle, GUILayout.ExpandWidth(true));
+            GUILayout.Space(6f);
+            GUILayout.Label(I18n.T("about.desc"), CenterLabelStyle, GUILayout.ExpandWidth(true));
+            GUILayout.Label(I18n.F("about.version", Plugin.PluginVersion), CenterLabelStyle, GUILayout.ExpandWidth(true));
+
+            GUILayout.Space(16f);
+            GUILayout.Label(I18n.T("about.sec_links"), CenterTitleStyle, GUILayout.ExpandWidth(true));
+            GUILayout.Space(6f);
+            DrawLinkButton(I18n.T("about.link_repo"), "https://github.com/huanxin996/Cu-Save-Manager");
+            DrawLinkButton(I18n.T("about.link_release"), "https://github.com/huanxin996/Cu-Save-Manager/releases/latest");
+
+            GUILayout.Space(16f);
+            GUILayout.Label(I18n.T("about.sec_credits"), CenterTitleStyle, GUILayout.ExpandWidth(true));
+            GUILayout.Space(6f);
+            DrawNameButton("huanxin996", "https://github.com/huanxin996");
+
+            GUILayout.Space(16f);
+            GUILayout.Label(I18n.T("about.sec_deps"), CenterTitleStyle, GUILayout.ExpandWidth(true));
+            GUILayout.Space(6f);
+            DrawLinkButton("KrokoshaCasualtiesMP", "https://github.com/Krokosha666/cas-unk-krokosha-multiplayer-coop");
+            DrawLinkButton("BepInEx", "https://github.com/BepInEx/BepInEx");
+
+            GUILayout.Space(20f);
+            GUILayout.EndScrollView();
+        }
+
+        private static GUIStyle _centerTitle;
+        private static GUIStyle CenterTitleStyle
+        {
+            get
+            {
+                if (_centerTitle == null) _centerTitle = new GUIStyle(BlackWhiteSkin.HeaderStyle) { alignment = TextAnchor.MiddleCenter };
+                return _centerTitle;
+            }
+        }
+
+        private static GUIStyle _centerLabel;
+        private static GUIStyle CenterLabelStyle
+        {
+            get
+            {
+                if (_centerLabel == null) _centerLabel = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true };
+                return _centerLabel;
+            }
+        }
+
+        private static void DrawLinkButton(string label, string url)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button(label, BlackWhiteSkin.TabStyle,
+                GUILayout.MinWidth(560f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(48f)))
+            {
+                try { Application.OpenURL(url); } catch { }
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            GUILayout.Space(6f);
+        }
+
+        private static void DrawNameButton(string name, string url)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button(name,
+                GUILayout.MinWidth(280f), GUILayout.ExpandWidth(false), GUILayout.MinHeight(40f)))
+            {
+                try { Application.OpenURL(url); } catch { }
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            GUILayout.Space(4f);
         }
 
         // —— 存档页 —— //

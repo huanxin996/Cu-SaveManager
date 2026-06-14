@@ -16,6 +16,7 @@ namespace CasualtiesUnknown.SaveManager
         private const string PluginGuid = "com.casualtiesUnknown.saveManager";
         private const string ApiUrl = "https://api.github.com/repos/huanxin996/Cu-SaveManager/releases/latest";
         private const string ReleasesUrl = "https://github.com/huanxin996/Cu-SaveManager/releases";
+        private const int UpdateNoticeSlot = 1;
 
         internal static bool Enabled = true;
 
@@ -100,7 +101,7 @@ namespace CasualtiesUnknown.SaveManager
 
             string text = I18n.F("update.available", _latestTag);
             float x = 32f;
-            float y = Screen.height * 0.18f;
+            float y = Screen.height * 0.12f + UpdateNoticeSlot * 40f;
             Vector2 size = style.CalcSize(new GUIContent(text));
             var rect = new Rect(x, y, size.x + 8f, size.y + 4f);
             if (GUI.Button(rect, text, style))
