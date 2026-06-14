@@ -1,4 +1,4 @@
-name: Build SaveManager
+name: Build CuSaveManager
 
 on:
   push:
@@ -26,14 +26,14 @@ jobs:
 
       - name: Build Release
         shell: pwsh
-        run: dotnet build SaveManager.csproj -c Release --nologo
+        run: dotnet build CuSaveManager.csproj -c Release --nologo
 
-      - name: Upload SaveManager
+      - name: Upload CuSaveManager
         uses: actions/upload-artifact@v4
         with:
-          name: SaveManager
+          name: CuSaveManager
           path: |
-            bin/Release/SaveManager.dll
-            bin/Release/SaveManager.pdb
+            bin/Release/CuSaveManager.dll
+            bin/Release/CuSaveManager.pdb
           if-no-files-found: error
           retention-days: 30
