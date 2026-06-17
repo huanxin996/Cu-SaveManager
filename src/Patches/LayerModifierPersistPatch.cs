@@ -1,6 +1,6 @@
 using System;
+using System.Reflection;
 using HarmonyLib;
-using UnityEngine;
 
 namespace CasualtiesUnknown.SaveManager
 {
@@ -8,8 +8,11 @@ namespace CasualtiesUnknown.SaveManager
     [HarmonyPatch(typeof(WorldGeneration), "ApplyLayerModifiers")]
     internal static class ApplyLayerModifiersRestorePatch
     {
-        /// <summary>由 PrepareWorldForSlot / Continue 设置：-2 表示无 pending；-1 表示明确"无词条"；>=0 表示对应 modifierIndex。命中后清零回 -2。</summary>
+        /// <summary>由 PrepareWorldForSlot / Continue 设置：-2 表示无 pending（交给游戏自滚）；-1 表示明确"本层无词条"；>=0 表示对应 modifierIndex。命中一次后清回 -2。</summary>
         internal static int PendingIndex = -2;
+
+        private static readonly FieldInfo PrefixField = AccessTools.Field(typeof(WorldGeneration), "layerPrefix");
+        private static readonly FieldInfo DescField = AccessTools.Field(typeof(WorldGeneration), "layerDescription");
 
         [HarmonyPrefix]
         private static bool Prefix(WorldGeneration __instance)
@@ -19,11 +22,10 @@ namespace CasualtiesUnknown.SaveManager
             PendingIndex = -2;
             try
             {
-                ResetActiveModifiers(__instance);
+                __instance.ResetLayerModifiers();
                 if (idx < 0)
                 {
-                    __instance.layerPrefix = "";
-                    __instance.layerDescription = "";
+                    ModLog.Info("LayerModifierRestorePatch 还原本层无词条");
                     return false;
                 }
                 var mods = LayerModifier.availableModifiers;
@@ -35,8 +37,8 @@ namespace CasualtiesUnknown.SaveManager
                 var m = mods[idx];
                 m.Initialize(__instance);
                 m.active = true;
-                __instance.layerPrefix = Locale.GetOther("layermodifier" + m.modifierIndex);
-                __instance.layerDescription = Locale.GetOther("layermodifier" + m.modifierIndex + "dsc");
+                PrefixField?.SetValue(__instance, Locale.GetOther("layermodifier" + m.modifierIndex));
+                DescField?.SetValue(__instance, Locale.GetOther("layermodifier" + m.modifierIndex + "dsc"));
                 ModLog.Info($"LayerModifierRestorePatch 还原词条 index={idx}");
             }
             catch (Exception ex)
@@ -45,21 +47,9 @@ namespace CasualtiesUnknown.SaveManager
             }
             return false;
         }
-
-        private static void ResetActiveModifiers(WorldGeneration world)
-        {
-            var mods = LayerModifier.availableModifiers;
-            if (mods == null) return;
-            foreach (var m in mods)
-            {
-                if (m == null || !m.active) continue;
-                try { m.Disable(world); } catch { }
-                m.active = false;
-            }
-        }
     }
 
-    /// <summary>读取当前激活的 LayerModifier 索引；无激活返回 -1。供 SaveStore 在 SnapshotGameContext 时调用。</summary>
+    /// <summary>读取当前激活的 LayerModifier 索引；availableModifiers 未就绪返回 -2（未知，不持久化决定），无激活返回 -1。供 SaveStore 在 SnapshotGameContext 时调用。</summary>
     internal static class LayerModifierSnapshot
     {
         internal static int CurrentActiveIndex()
@@ -67,13 +57,16 @@ namespace CasualtiesUnknown.SaveManager
             try
             {
                 var mods = LayerModifier.availableModifiers;
-                if (mods == null) return -1;
+                if (mods == null) return -2;
                 foreach (var m in mods)
                 {
                     if (m != null && m.active) return m.modifierIndex;
                 }
             }
-            catch { }
+            catch
+            {
+                return -2;
+            }
             return -1;
         }
     }

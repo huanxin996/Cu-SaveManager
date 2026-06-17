@@ -13,6 +13,10 @@ namespace CasualtiesUnknown.SaveManager
         internal static int CurrentSeed { get; private set; }
         internal static string InputString { get; private set; } = "";
 
+        /// <summary>多人下是否启用逐阶段种子重置：主机/客户端确认拿到固定世界种子后置真，
+        /// 使多人世界与同种子单机一致。仅多人路径用；单机由 IsActive 决定。</summary>
+        internal static bool MpReseedEnabled { get; set; }
+
         /// <summary>用手动输入设种子。空串关闭确定化；纯数字直接当种子，否则取字符串稳定 hash。</summary>
         internal static void SetManualSeed(string input)
         {
@@ -51,6 +55,7 @@ namespace CasualtiesUnknown.SaveManager
             IsActive = false;
             CurrentSeed = 0;
             InputString = "";
+            MpReseedEnabled = false;
         }
 
         /// <summary>当前层的种子：基础种子叠加 totalTraveled 偏移，保证逐层不同但可复现。</summary>

@@ -79,6 +79,7 @@ namespace CasualtiesUnknown.SaveManager
             ModLog.Info(MultiplayerBridge.IsModPresent() ? I18n.T("mp.mod_detected") : I18n.T("mp.mod_not_detected"));
             ModLog.Info(QolBridge.IsQolPresent() ? I18n.T("qol.mod_detected") : I18n.T("qol.mod_not_detected"));
             MpWorldSeedInjector.TryPatch();
+            MpSeedBroadcast.TryPatch();
             MpRollbackRunner.Ensure(this);
             MpPositionRestorer.TryPatchHarmony();
             gameObject.AddComponent<UpdateChecker>();

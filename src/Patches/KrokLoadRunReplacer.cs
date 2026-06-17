@@ -99,6 +99,7 @@ namespace CasualtiesUnknown.SaveManager
 
             ModLog.Info("LoadRun：Net.running=false，反射 LoadVanillaGeneratedWorld(loadsave:true)");
             RunSettingsBridge.RestoreFromSaveFile(MpSaveLocator.ResolveLocalPlayerSavePath());
+            RestoreMpWorldSeed();
             MultiplayerBridge.TryLoadMultiplayerContinue(loadsave: true);
             return false;
         }
@@ -133,9 +134,25 @@ namespace CasualtiesUnknown.SaveManager
             }
             ModLog.Info($"LoadRun：Net.running=true，走 KrokMP LoadVanillaGeneratedWorld(loadsave:{loadsave})");
             if (loadsave)
+            {
                 RunSettingsBridge.RestoreFromSaveFile(MpSaveLocator.ResolveLocalPlayerSavePath());
+                RestoreMpWorldSeed();
+            }
             MultiplayerBridge.TryLoadMultiplayerContinue(loadsave);
             return false;
+        }
+
+        /// <summary>多人续玩（主机 loadsave）按本地玩家存档的 sidecar 还原世界引擎与固定世界种子，
+        /// 使 self 引擎多人存档重启后世界可复现；随后 Server_AnnounceSeed 会把种子广播给客户端。</summary>
+        private static void RestoreMpWorldSeed()
+        {
+            try
+            {
+                var sidecar = SlotSidecar.LoadOrEmpty(MpSaveLocator.ResolveLocalPlayerSavePath());
+                WorldEngineArbiter.PrepareMpRollback(sidecar);
+                ModLog.Info($"多人续玩：还原世界引擎/种子 engine='{sidecar.WorldEngine}' seed={sidecar.QolSeed}");
+            }
+            catch (Exception ex) { ModLog.Warning($"多人续玩还原世界种子失败：{ex.Message}"); }
         }
 
         private static bool HasAnySaveFile()

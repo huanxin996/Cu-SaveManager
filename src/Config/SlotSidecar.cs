@@ -40,8 +40,8 @@ namespace CasualtiesUnknown.SaveManager
         internal float FixedY { get; set; }
         internal bool IsMultiplayer { get; set; }
 
-        /// <summary>本层激活的 LayerModifier 索引；-1 表示无词条。读档时由 LayerModifierRestorePatch 还原。</summary>
-        internal int ActiveLayerModifierIndex { get; set; } = -1;
+        /// <summary>本层激活的 LayerModifier 索引；-2=未记录（旧档/游戏未加载，回档时交给游戏自滚），-1=本层无词条，>=0=对应 modifierIndex。读档时由 ApplyLayerModifiersRestorePatch 还原。</summary>
+        internal int ActiveLayerModifierIndex { get; set; } = -2;
 
         internal static SlotSidecar LoadOrEmpty(string slotPath)
         {
@@ -134,8 +134,8 @@ namespace CasualtiesUnknown.SaveManager
             s.FixedY = ReadFloat(text, "fixedY");
             s.IsMultiplayer = ReadBool(text, "isMultiplayer");
             int idx = ReadInt(text, "activeLayerModifierIndex");
-            // 老 sidecar 没这字段：ReadInt 返 0；用 FindKey 区分"无字段"vs"显式 0"
-            s.ActiveLayerModifierIndex = FindKey(text, "activeLayerModifierIndex") < 0 ? -1 : idx;
+            // 老 sidecar 没这字段：ReadInt 返 0；用 FindKey 区分"无字段"（-2 未记录）vs"显式值"
+            s.ActiveLayerModifierIndex = FindKey(text, "activeLayerModifierIndex") < 0 ? -2 : idx;
             return s;
         }
 

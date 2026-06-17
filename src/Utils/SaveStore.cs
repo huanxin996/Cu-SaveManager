@@ -295,6 +295,7 @@ namespace CasualtiesUnknown.SaveManager
                 FixedX = WorldEngineArbiter.FixedX,
                 FixedY = WorldEngineArbiter.FixedY,
                 IsMultiplayer = ShouldUseMpSave(),
+                ActiveLayerModifierIndex = ctx.ActiveLayerModifierIndex,
             };
         }
 
@@ -302,6 +303,8 @@ namespace CasualtiesUnknown.SaveManager
         internal void PrepareWorldForSlot(SlotSidecar sidecar)
         {
             if (sidecar == null) return;
+            // bug2：本层词条按存档还原，阻止游戏 ApplyLayerModifiers 重滚；两套引擎都生效。
+            ApplyLayerModifiersRestorePatch.PendingIndex = sidecar.ActiveLayerModifierIndex;
             RunSettingsBridge.RestoreFromSaveFile(sidecar.IsMultiplayer
                 ? MpSaveLocator.ResolveLocalPlayerSavePath()
                 : GameSavePath);
@@ -833,6 +836,7 @@ namespace CasualtiesUnknown.SaveManager
                 QolSeed = qolSeed,
                 QolSeedInput = qolInput,
                 WorldEngine = ResolveCurrentPreferredEngineName(),
+                ActiveLayerModifierIndex = LayerModifierSnapshot.CurrentActiveIndex(),
             };
         }
 
@@ -846,6 +850,7 @@ namespace CasualtiesUnknown.SaveManager
             public int QolSeed;
             public string QolSeedInput;
             public string WorldEngine;
+            public int ActiveLayerModifierIndex;
         }
 
         private static string ResolveSlotsRoot()

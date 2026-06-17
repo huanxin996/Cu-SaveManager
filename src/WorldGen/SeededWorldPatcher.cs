@@ -31,7 +31,10 @@ namespace CasualtiesUnknown.SaveManager
             ("DistributeMiniBarrels", 9200),
         };
 
-        private static bool On => SeededWorldEngine.IsActive && !MultiplayerBridge.IsMultiplayerRunning();
+        // 单机：self 引擎激活即介入。多人：仅在拿到主机广播的固定世界种子后介入（MpReseedEnabled），
+        // 使全员逐阶段重置、世界与同种子单机一致；KrokMP 原生世界则不介入。
+        private static bool On => SeededWorldEngine.IsActive
+            && (!MultiplayerBridge.IsMultiplayerRunning() || SeededWorldEngine.MpReseedEnabled);
 
         /// <summary>显式挂载世界生成各阶段 Prefix；幂等。</summary>
         internal static void TryPatch(Harmony harmony)
@@ -72,6 +75,7 @@ namespace CasualtiesUnknown.SaveManager
         {
             QolSpawnSuppressor.TryPatch();
             MpWorldSeedInjector.TryPatch();
+            MpSeedBroadcast.TryPatch();
             if (!SaveSystem.loadedRun) WorldEngineArbiter.ApplyForFreshRun();
             ModLog.Info($"世界生成开始：loadedRun={SaveSystem.loadedRun} engine={WorldEngineArbiter.Current} effective={WorldEngineArbiter.ResolveEffectiveEngineName()} selfActive={SeededWorldEngine.IsActive} seed={SeededWorldEngine.CurrentSeed} layerSeed={SeededWorldEngine.LayerSeed()}");
         }
