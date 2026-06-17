@@ -317,6 +317,7 @@ namespace CasualtiesUnknown.SaveManager
             if (wantSelf)
             {
                 WorldEngineArbiter.Apply(WorldEngine.Self, sidecar.QolSeed, sidecar.QolSeedInput);
+                IntroLifepodOnLoadGuardPatch.PendingSkipIntroLifepod = true;
                 var pos = ResolveSpawnPosition(sidecar);
                 if (pos.HasValue)
                 {

@@ -40,6 +40,9 @@ namespace CasualtiesUnknown.SaveManager
         internal float FixedY { get; set; }
         internal bool IsMultiplayer { get; set; }
 
+        /// <summary>本层激活的 LayerModifier 索引；-1 表示无词条。读档时由 LayerModifierRestorePatch 还原。</summary>
+        internal int ActiveLayerModifierIndex { get; set; } = -1;
+
         internal static SlotSidecar LoadOrEmpty(string slotPath)
         {
             try
@@ -100,7 +103,8 @@ namespace CasualtiesUnknown.SaveManager
             sb.Append("\"posMode\":").Append(EscapeJsonString(PosMode)).Append(',');
             sb.Append("\"fixedX\":").Append(FixedX.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
             sb.Append("\"fixedY\":").Append(FixedY.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
-            sb.Append("\"isMultiplayer\":").Append(IsMultiplayer ? "true" : "false");
+            sb.Append("\"isMultiplayer\":").Append(IsMultiplayer ? "true" : "false").Append(',');
+            sb.Append("\"activeLayerModifierIndex\":").Append(ActiveLayerModifierIndex.ToString());
             sb.Append('}');
             return sb.ToString();
         }
@@ -129,6 +133,9 @@ namespace CasualtiesUnknown.SaveManager
             s.FixedX = ReadFloat(text, "fixedX");
             s.FixedY = ReadFloat(text, "fixedY");
             s.IsMultiplayer = ReadBool(text, "isMultiplayer");
+            int idx = ReadInt(text, "activeLayerModifierIndex");
+            // 老 sidecar 没这字段：ReadInt 返 0；用 FindKey 区分"无字段"vs"显式 0"
+            s.ActiveLayerModifierIndex = FindKey(text, "activeLayerModifierIndex") < 0 ? -1 : idx;
             return s;
         }
 
