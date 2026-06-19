@@ -46,8 +46,12 @@ namespace CasualtiesUnknown.SaveManager
         internal static string ResolveEffectiveEngineName(string preferred = null)
         {
             string pref = NormalizeEngineName(preferred ?? PreferredEngine);
-            if (pref == "krok" && MultiplayerBridge.IsMultiplayerEnabled()) return "krok";
+            bool mpEnabled = MultiplayerBridge.IsMultiplayerEnabled();
+            // 「本 mod 固定世界」是显式 opt-in：只有用户主动选 self 才启用确定化引擎。
+            if (pref == "self") return "self";
+            if (pref == "krok" && mpEnabled) return "krok";
             if (pref == "qol" && QolBridge.IsQolPresent()) return "qol";
+            if (mpEnabled) return "krok";
             return "self";
         }
 

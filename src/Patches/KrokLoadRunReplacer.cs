@@ -105,7 +105,7 @@ namespace CasualtiesUnknown.SaveManager
         }
 
         /// <summary>新游戏：联机未开时放行原版 StartRun（Krok 会硬拦单机新局）。</summary>
-        private static bool StartRun_Prefix()
+        private static bool StartRun_Prefix(PreRunScript __instance)
         {
             if (!MultiplayerBridge.IsMultiplayerEnabled())
                 return true;
@@ -121,6 +121,9 @@ namespace CasualtiesUnknown.SaveManager
             }
 
             ModLog.Info("StartRun：Net.running=true，走 KrokMP LoadVanillaGeneratedWorld(loadsave:false)");
+            SaveSystem.loadedRun = false;
+            if (__instance != null && __instance.runSettings != null)
+                WorldGeneration.runSettings = __instance.runSettings;
             MultiplayerBridge.TryLoadMultiplayerContinue(loadsave: false);
             return false;
         }

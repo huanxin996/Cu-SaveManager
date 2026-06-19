@@ -39,10 +39,9 @@ namespace CasualtiesUnknown.SaveManager
             IsActive = true;
         }
 
-        /// <summary>无有效种子时自生成一个一次性随机种子并激活；已激活则保持。</summary>
+        /// <summary>新开局时生成一个一次性随机种子并激活。</summary>
         internal static void EnsureFreshSeed()
         {
-            if (IsActive && CurrentSeed != 0) return;
             int seed = Guid.NewGuid().GetHashCode();
             if (seed == 0) seed = 1;
             CurrentSeed = seed;

@@ -2,6 +2,14 @@
 
 > 中文更新日志：见 [changes.md](changes.md)
 
+## 1.1.4
+
+Fixes three issues that appeared when running alongside the KrokMP multiplayer mod with no QoL installed:
+
+- **Map mode always defaulted**: after this mod took over `PreRunScript.StartRun`, it dropped the `WorldGeneration.runSettings = <chosen preset>` write that KrokMP's own patch performed, so a host's chosen map mode (Desolate / Unchipped / Custom) was overwritten by the `normal` preset in `WorldGeneration.Awake`. The write is now restored in the takeover.
+- **Same seed every restart (map identical to last time)**: with the default `PreferredEngine=qol` and QoL absent, the old logic fell through to this mod's deterministic world engine and force-injected a fixed seed; `EnsureFreshSeed` also returned early when already active, reusing the previous run's seed. The default now hands world generation back to KrokMP (random maps) whenever KrokMP is present; the fixed-world engine is opt-in (pick "This mod" in the panel). `EnsureFreshSeed` now re-rolls the seed for every fresh run.
+- **Cannot advance to the next layer**: the deterministic engine recomputed the seed from the save's stale `totalTraveled` when advancing, regenerating a world identical to the current layer, so "walk to the bottom and choose next layer" kept the same layer. Fixed by handing layer progression back to KrokMP per the item above.
+
 ## 1.1.2
 
 - Sidebar of the main panel now has an "About" tab, in the same SkinSync-style centered title + link buttons + name buttons layout, showing version / repo / latest release / author / dependencies.
