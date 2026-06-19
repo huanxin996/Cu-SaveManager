@@ -31,22 +31,26 @@ namespace CasualtiesUnknown.SaveManager
             return v;
         }
 
-        /// <summary>SaveGame 后规范化 mp_save 内各玩家 save.sv 的 biome，并锁定 mp_rules 为当前层（非进层过渡）。</summary>
-        internal static void NormalizeAfterSnapshot(int biomeDepth)
+        /// <summary>SaveGame 后规范化 mp_save 内各玩家 save.sv 的 biome，并锁定 mp_rules 为当前层（非进层过渡）。
+        /// atBoundary=true（玩家在层底＝进下一层）时不可改写 biome：游戏写入的 biomeDepth+1 是进层依据，改回当前层会卡层。</summary>
+        internal static void NormalizeAfterSnapshot(int biomeDepth, bool atBoundary)
         {
             if (!MpSaveLocator.HasMpSave()) return;
             try
             {
-                if (Directory.Exists(MpSaveLocator.MpSaveDir))
+                if (!atBoundary)
                 {
-                    foreach (var dir in Directory.GetDirectories(MpSaveLocator.MpSaveDir))
+                    if (Directory.Exists(MpSaveLocator.MpSaveDir))
                     {
-                        string sv = Path.Combine(dir, "save.sv");
-                        if (File.Exists(sv)) NormalizeSaveBiomeField(sv, biomeDepth);
+                        foreach (var dir in Directory.GetDirectories(MpSaveLocator.MpSaveDir))
+                        {
+                            string sv = Path.Combine(dir, "save.sv");
+                            if (File.Exists(sv)) NormalizeSaveBiomeField(sv, biomeDepth);
+                        }
                     }
+                    string rootSv = Path.Combine(MpSaveLocator.MpSaveDir, "save.sv");
+                    if (File.Exists(rootSv)) NormalizeSaveBiomeField(rootSv, biomeDepth);
                 }
-                string rootSv = Path.Combine(MpSaveLocator.MpSaveDir, "save.sv");
-                if (File.Exists(rootSv)) NormalizeSaveBiomeField(rootSv, biomeDepth);
                 FixMpRulesForCurrentLayer();
             }
             catch (Exception ex)

@@ -3,6 +3,7 @@ using System.Collections;
 using BepInEx.Bootstrap;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.SceneManagement;
 
 namespace CasualtiesUnknown.SaveManager
 {
@@ -17,6 +18,7 @@ namespace CasualtiesUnknown.SaveManager
         private const string ApiUrl = "https://api.github.com/repos/huanxin996/Cu-SaveManager/releases/latest";
         private const string ReleasesUrl = "https://github.com/huanxin996/Cu-SaveManager/releases";
         private const int UpdateNoticeSlot = 1;
+        private const string MainMenuScene = "PreGen";
 
         internal static bool Enabled = true;
 
@@ -87,6 +89,8 @@ namespace CasualtiesUnknown.SaveManager
         private void OnGUI()
         {
             if (!_updateAvailable || !Enabled) return;
+            // 仅在主菜单（PreGen 场景）提示，进游戏后（SampleScene）不弹。
+            if (SceneManager.GetActiveScene().name != MainMenuScene) return;
 
             var style = new GUIStyle(GUI.skin.label)
             {

@@ -1,4 +1,4 @@
-# CuSaveManager V1.1.5 for Casualties: Unknown
+# CuSaveManager V1.1.6 for Casualties: Unknown
 
 > 适配游戏《未知伤亡》的多存档、死亡回档与固定世界模组
 > 兼容：KrokMP 多人模式、QoL Unknown（缺少不影响基础功能）

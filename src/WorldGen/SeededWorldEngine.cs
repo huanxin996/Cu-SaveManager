@@ -57,7 +57,9 @@ namespace CasualtiesUnknown.SaveManager
             MpReseedEnabled = false;
         }
 
-        /// <summary>当前层的种子：基础种子叠加 totalTraveled 偏移，保证逐层不同但可复现。</summary>
+        /// <summary>当前层的种子：基础种子叠加 totalTraveled 偏移，保证逐层不同但可复现。
+        /// totalTraveled 取「当前层」值：进层时内存已递增用内存值；初次读档内存尚未填充（GenerateWorld 早于
+        /// TryLoadGame）则回落磁盘 save.sv 值。与 MpWorldSeedInjector 取值口径一致，避免广播种子与逐阶段重置错配。</summary>
         internal static int LayerSeed()
         {
             int traveled = 0;
@@ -66,6 +68,11 @@ namespace CasualtiesUnknown.SaveManager
                 if (WorldGeneration.world != null) traveled = WorldGeneration.world.totalTraveled;
             }
             catch { }
+            if (traveled <= 0)
+            {
+                try { traveled = MpSaveLayerHelper.ReadPersistedTotalTraveled(); }
+                catch { }
+            }
             return CurrentSeed + traveled * 265443576;
         }
 

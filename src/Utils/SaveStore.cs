@@ -358,7 +358,8 @@ namespace CasualtiesUnknown.SaveManager
             sidecar.FixedX = WorldEngineArbiter.FixedX;
             sidecar.FixedY = WorldEngineArbiter.FixedY;
 
-            NormalizeSaveBiome(GameSavePath, sidecar.Biome);
+            // 不在此处改写 biome：save.sv 的 biome 由存档时刻按是否在层底写定（层底=进下一层，保留 biomeDepth+1；
+            // 层中=原位续玩，已规范回当前层）。主菜单 Continue 时拿不到场内玩家位置，重复规范会把进层用的 biomeDepth+1 改回当前层=卡层。
             PersistCurrentSaveSidecar(sidecar);
             PrepareWorldForSlot(sidecar);
         }
@@ -380,7 +381,11 @@ namespace CasualtiesUnknown.SaveManager
         {
             if (ShouldUseMpSave()) return;
             if (!File.Exists(GameSavePath)) return;
-            NormalizeSaveBiome(GameSavePath, ctx.Biome);
+            // 游戏以「存档→读档」推进层：SaveGame 写 biome=biomeDepth+1，TryLoadGame 读回。
+            // 层底保存即「进下一层」，必须保留游戏写入的 biomeDepth+1，否则读档回原层＝卡层；
+            // 仅层中保存才把 biome 规范回当前层以便原位续玩。
+            if (!IsPlayerAtLayerBoundary())
+                NormalizeSaveBiome(GameSavePath, ctx.Biome);
             PersistCurrentSaveSidecar(BuildSidecar(ctx, "", isAuto: false));
         }
 
@@ -645,8 +650,23 @@ namespace CasualtiesUnknown.SaveManager
                 ModLog.Info($"存档层数：path={sv} biomeDepth={depth} totalTraveled={traveled} rawBiome={ReadBiomeFromSv(sv)} liveDepth={WorldGeneration.world?.biomeDepth}");
             }
             if (ShouldUseMpSave())
-                MpSaveLayerHelper.NormalizeAfterSnapshot(ctx.Biome);
+                MpSaveLayerHelper.NormalizeAfterSnapshot(ctx.Biome, IsPlayerAtLayerBoundary());
             return ctx;
+        }
+
+        /// <summary>玩家是否站在层底（进层点）。镜像游戏判定 body.y &lt; -halfHeight+3.1f。
+        /// 游戏用「存档→读档」推进层，层底保存即进下一层，此时不可把 biome 改回当前层。</summary>
+        internal static bool IsPlayerAtLayerBoundary()
+        {
+            try
+            {
+                var w = WorldGeneration.world;
+                var cam = PlayerCamera.main;
+                if (w == null || cam == null || cam.body == null) return false;
+                float y = cam.body.transform.position.y;
+                return y < (float)(0L - (long)w.halfHeight) + 3.1f;
+            }
+            catch { return false; }
         }
 
         private static void NormalizeSaveBiome(string fullPath, int biome)

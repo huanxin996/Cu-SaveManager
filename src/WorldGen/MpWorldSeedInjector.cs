@@ -58,15 +58,19 @@ namespace CasualtiesUnknown.SaveManager
                 ModLog.Info($"多人世界种子注入跳过：selfActive={active} isServer={server}");
                 return;
             }
-            int traveled = MpSaveLayerHelper.ReadPersistedTotalTraveled();
-            if (traveled == 0)
-            {
-                try { if (WorldGeneration.world != null) traveled = WorldGeneration.world.totalTraveled; }
-                catch { }
-            }
+            // 取「最深进度」的 totalTraveled：
+            //   - 初次读档时内存 totalTraveled 尚未填充（GenerateWorld 早于 TryLoadGame），须用磁盘 save.sv 值；
+            //   - 进下一层（RegenerateWorld）时内存值已 IncreaseDepthByLayer 递增，而磁盘 save.sv 仍是上一层旧值。
+            // 若只读磁盘旧值，进层会用上一层的种子重算 → 重新生成与所在层相同的地图，表现为“卡层”。
+            // 两者取最大即可同时覆盖读档与进层：始终对应当前正在生成的这一层。
+            int diskTraveled = MpSaveLayerHelper.ReadPersistedTotalTraveled();
+            int memTraveled = 0;
+            try { if (WorldGeneration.world != null) memTraveled = WorldGeneration.world.totalTraveled; }
+            catch { }
+            int traveled = Math.Max(diskTraveled, memTraveled);
             int seed = SeededWorldEngine.CurrentSeed + traveled * 265443576;
             UnityEngine.Random.InitState(seed);
-            ModLog.Info($"多人世界种子注入：seed={seed} totalTraveled={traveled}");
+            ModLog.Info($"多人世界种子注入：seed={seed} totalTraveled={traveled}（disk={diskTraveled} mem={memTraveled}）");
         }
     }
 }

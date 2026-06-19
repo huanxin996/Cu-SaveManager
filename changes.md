@@ -2,6 +2,13 @@
 
 > English changelog: see [changes.en.md](changes.en.md)
 
+## 1.1.6
+
+**修复进层时层级编号不递增（单机 / 装了 KrokMP 的单人）。**
+
+- 根因：游戏用「存档→读档」推进层级。`SaveSystem.SaveGame` 写入 `biome = biomeDepth + 1`（下一层），`TryLoadGame` 直接 `biomeDepth = biome`，因此在层底保存再继续即载入下一层。CuSaveManager 的「续档持久化」把 `biome` 字段改写成内存里 0 基的 `biomeDepth`，抹掉了这个 `+1`，于是读档又回到原层（层号始终不变）。该问题出现在单机（以及装了 KrokMP 但未开房）场景——此时进层走的是 `SaveGame`→`LoadGame`，正对应「走到底点下一层却还是当前层」。自 1.1.3 起就存在，移除本 mod 即恢复正常。
+- 修复：在层底保存（玩家位于底端＝进下一层）时保留游戏写入的 `biome = biomeDepth + 1`，不再规范回当前层；仅层中保存（原位续玩）才做 biome 规范化。主菜单 Continue 路径拿不到场内玩家位置，那里多余的 biome 改写已移除，避免再次撤销进层。多人 `mp_save` 规范化同样加了层底保护。
+
 ## 1.1.5
 
 本 mod 自身固定世界引擎（self）确定化补强：补全协程内全部同步执行点的重置。
@@ -10,6 +17,7 @@
 - 新增对协程内**同步执行**子方法的逐一即时重置：`FastNoiseLite` 构造函数（地形/洞穴噪声，按 `_noiseGenStep` 递增）、`DistributeEntities`（敌人/陷阱/箱子/尸体等分布，按名字 hash+参数+调用序号）、`PlaceLiquids`、`GenerateLifePods`/`GenerateDropCapsules`/`GenerateCollapsedPods`、`ApplyLayerModifiers`（与读档还原补丁共存）。
 - 进层/重生成/清理时复位计数器与种子：`ContinueRun`、`RegenerateWorld`、`Clear`，并在 `GenerateWorld`/`WorldGenerateTerrain` 阶段开头复位噪声计数。
 - 战利品确定化：`TraderScript.GenerateInventory`、`Openable.OnUse`（前后保存/还原 `Random.state` 避免污染全局流）。
+- **修复选 self 引擎进下一层“卡层”（多人主机）**：进层时游戏先在内存递增 `totalTraveled`，但磁盘 save.sv 仍为上一层旧值；`MpWorldSeedInjector` 原先只读磁盘旧值，导致每进一层都用上一层种子重算 → 重生成与所在层相同的地图。改为取内存/磁盘两者最大值（读档时用磁盘值，进层时用内存递增值），与 `SeededWorldPatcher.LayerSeed` 保持一致。
 - 存档/读档一致路径（原生存档 + 各还原补丁）不变。
 
 ## 1.1.4

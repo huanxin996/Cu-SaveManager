@@ -155,8 +155,8 @@ namespace CasualtiesUnknown.SaveManager
 
         private static void Phase_Prefix(MethodBase __originalMethod)
         {
-            if (!On) return;
             string name = __originalMethod.Name;
+            if (!On) return;
             // 在世界生成 / 地形阶段开头复位噪声与实体计数器。
             if (name == "GenerateWorld") { _noiseGenStep = 0; _distributeEntitiesCallIndex = 0; }
             else if (name == "WorldGenerateTerrain") { _noiseGenStep = 0; }

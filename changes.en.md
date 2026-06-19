@@ -2,6 +2,13 @@
 
 > 中文更新日志：见 [changes.md](changes.md)
 
+## 1.1.6
+
+**Fixed the layer number not advancing (single-player / KrokMP-installed solo).**
+
+- Root cause: the game advances layers via save→load. `SaveSystem.SaveGame` writes `biome = biomeDepth + 1` (the next layer) and `TryLoadGame` sets `biomeDepth = biome`, so saving at the bottom of a layer and continuing loads the next layer. CuSaveManager's "persist current save for continue" overwrote the `biome` field with the live 0-based `biomeDepth`, erasing the `+1`, so reloading returned to the same layer (the layer number never changed). This affected single-player (and KrokMP installed but not hosting), where the layer transition is a `SaveGame`→`LoadGame` cycle — matching "reach the bottom, choose next layer, still the same layer". It existed since 1.1.3 and disappeared when the mod was removed.
+- Fix: when saving at a layer boundary (player at the bottom = advancing), the game's `biome = biomeDepth + 1` is now preserved instead of being normalized back to the current layer; biome normalization only runs for mid-layer saves (resume in place). The redundant biome rewrite on the main-menu Continue path (which has no in-world player position) was removed so it can no longer undo the advance. The same boundary guard was applied to the multiplayer `mp_save` normalization.
+
 ## 1.1.5
 
 Determinism hardening for this mod's own fixed-world engine (self): added reseeding at all synchronous execution points inside the worldgen coroutines.
@@ -10,6 +17,7 @@ Determinism hardening for this mod's own fixed-world engine (self): added reseed
 - Added per-method, just-in-time reseeding of the **synchronous** sub-methods called inside those coroutines: the `FastNoiseLite` constructor (terrain/cave noise, stepped by `_noiseGenStep`), `DistributeEntities` (enemies/traps/crates/corpses, keyed by name hash + params + call index), `PlaceLiquids`, `GenerateLifePods`/`GenerateDropCapsules`/`GenerateCollapsedPods`, and `ApplyLayerModifiers` (coexists with the load/rollback restore patch).
 - Counter/seed resets on layer advance / regen / clear: `ContinueRun`, `RegenerateWorld`, `Clear`, plus noise-counter reset at the start of `GenerateWorld`/`WorldGenerateTerrain`.
 - Loot determinism: `TraderScript.GenerateInventory` and `Openable.OnUse` (save/restore `Random.state` around them to avoid polluting the global stream).
+- **Fixed "stuck layer" with the self engine when advancing layers (multiplayer host)**: on a layer transition the game increments `totalTraveled` in memory before regenerating, but the on-disk save.sv still holds the previous layer's value. `MpWorldSeedInjector` read only the disk value, so every new layer was seeded with the previous layer's `totalTraveled` and regenerated an identical-looking map. It now takes the max of in-memory and disk values (disk for initial load, in-memory for live layer transitions), consistent with `SeededWorldPatcher.LayerSeed`.
 - The save/load-exact path (native save + restore patches) is unchanged.
 
 ## 1.1.4
