@@ -2,6 +2,16 @@
 
 > 中文更新日志：见 [changes.md](changes.md)
 
+## 1.1.5
+
+Determinism hardening for this mod's own fixed-world engine (self): added reseeding at all synchronous execution points inside the worldgen coroutines.
+
+- Why: Harmony prefixes on the coroutine worldgen phases (`IEnumerator`, e.g. `WorldGenerateTerrain`/`WorldPlaceEntities`/`WorldGenerateStructures`) run only once when the coroutine object is created (before the first `yield`). The actual random draws happen on later frames after `yield`, by which time `UnityEngine.Random` may have been disturbed by other systems. So phase-level reseeding alone is unreliable and terrain/entities may not reproduce from the seed.
+- Added per-method, just-in-time reseeding of the **synchronous** sub-methods called inside those coroutines: the `FastNoiseLite` constructor (terrain/cave noise, stepped by `_noiseGenStep`), `DistributeEntities` (enemies/traps/crates/corpses, keyed by name hash + params + call index), `PlaceLiquids`, `GenerateLifePods`/`GenerateDropCapsules`/`GenerateCollapsedPods`, and `ApplyLayerModifiers` (coexists with the load/rollback restore patch).
+- Counter/seed resets on layer advance / regen / clear: `ContinueRun`, `RegenerateWorld`, `Clear`, plus noise-counter reset at the start of `GenerateWorld`/`WorldGenerateTerrain`.
+- Loot determinism: `TraderScript.GenerateInventory` and `Openable.OnUse` (save/restore `Random.state` around them to avoid polluting the global stream).
+- The save/load-exact path (native save + restore patches) is unchanged.
+
 ## 1.1.4
 
 Fixes three issues that appeared when running alongside the KrokMP multiplayer mod with no QoL installed:

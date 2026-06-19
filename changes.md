@@ -2,11 +2,23 @@
 
 > English changelog: see [changes.en.md](changes.en.md)
 
+## 1.1.5
+
+本 mod 自身固定世界引擎（self）确定化补强：补全协程内全部同步执行点的重置。
+
+- 背景：协程世界生成阶段（`IEnumerator`，如 `WorldGenerateTerrain`/`WorldPlaceEntities`/`WorldGenerateStructures`）的 Harmony Prefix 只在协程对象创建时（首个 `yield` 之前）执行一次，真正抽随机发生在 `yield` 之后的帧里，期间 `UnityEngine.Random` 可能被其它系统打乱 → 仅阶段级重置不可靠，地形/实体可能无法按种子复现。
+- 新增对协程内**同步执行**子方法的逐一即时重置：`FastNoiseLite` 构造函数（地形/洞穴噪声，按 `_noiseGenStep` 递增）、`DistributeEntities`（敌人/陷阱/箱子/尸体等分布，按名字 hash+参数+调用序号）、`PlaceLiquids`、`GenerateLifePods`/`GenerateDropCapsules`/`GenerateCollapsedPods`、`ApplyLayerModifiers`（与读档还原补丁共存）。
+- 进层/重生成/清理时复位计数器与种子：`ContinueRun`、`RegenerateWorld`、`Clear`，并在 `GenerateWorld`/`WorldGenerateTerrain` 阶段开头复位噪声计数。
+- 战利品确定化：`TraderScript.GenerateInventory`、`Openable.OnUse`（前后保存/还原 `Random.state` 避免污染全局流）。
+- 存档/读档一致路径（原生存档 + 各还原补丁）不变。
+
 ## 1.1.4
 
-- **地图模式恒为默认**：修复模式恒定问题。
-- **每次重开都是同一种子（地图与上一次相同）**：改为每次新开局重新取种子。
-- **无法进入下一层（卡在当前层）**：确定化引擎在进层时按存档里旧的 `totalTraveled` ，修复。
+仅装 KrokMP 联机 mod（未装 QoL）时，与 KrokMP 同开会出现三个问题，本版修复：
+
+- **地图模式恒为默认**：本 mod 接管 `PreRunScript.StartRun` 后丢掉了 KrokMP 原补丁里的 `WorldGeneration.runSettings = 所选预设` 写入，导致主机开房时荒凉/无芯片/自定义等地图模式被 `WorldGeneration.Awake` 回落到 normal 预设。已在接管逻辑里补回该写入。
+- **每次重开都是同一种子（地图与上一次相同）**：默认 `PreferredEngine=qol`，未装 QoL 时旧逻辑回落到本 mod 的「确定化世界」引擎并强制注入固定种子；且 `EnsureFreshSeed` 在已激活时直接返回，跨局复用上一局种子。现默认行为改为：KrokMP 在场即交还其原生世界生成（随机地图）；本 mod 固定世界引擎改为显式 opt-in（面板里手动选「本 mod」）。`EnsureFreshSeed` 每次新开局重新取种子。
+- **无法进入下一层（卡在当前层）**：确定化引擎在进层时按存档里旧的 `totalTraveled` 复算种子，重新生成与所在层相同的世界，表现为“走到底端选下一层仍是同一层”。随上一条交还 KrokMP 原生进层后修复。
 
 ## 1.1.2
 

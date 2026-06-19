@@ -6,7 +6,7 @@
     <RootNamespace>CasualtiesUnknown.SaveManager</RootNamespace>
     <LangVersion>9</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>1.1.4</Version>
+    <Version>1.1.5</Version>
     <Description>Casualties Unknown — 多存档槽位管理与定时备份 mod</Description>
 
     <!-- BepInEx 自管依赖解析；不要把 Unity / 游戏 dll 复制到产物目录 -->

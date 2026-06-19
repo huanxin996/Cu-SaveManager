@@ -458,6 +458,7 @@ namespace CasualtiesUnknown.SaveManager
             GUILayout.Space(6f);
             DrawLinkButton("KrokoshaCasualtiesMP", "https://github.com/Krokosha666/cas-unk-krokosha-multiplayer-coop");
             DrawLinkButton("BepInEx", "https://github.com/BepInEx/BepInEx");
+            DrawLinkButton("QoL Unknown", "https://github.com/jimmyking9999999/QoL-Unknown");
 
             GUILayout.Space(20f);
             GUILayout.EndScrollView();
