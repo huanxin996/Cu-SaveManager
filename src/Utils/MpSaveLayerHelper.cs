@@ -32,13 +32,13 @@ namespace CasualtiesUnknown.SaveManager
         }
 
         /// <summary>SaveGame 后规范化 mp_save 内各玩家 save.sv 的 biome，并锁定 mp_rules 为当前层（非进层过渡）。
-        /// atBoundary=true（玩家在层底＝进下一层）时不可改写 biome：游戏写入的 biomeDepth+1 是进层依据，改回当前层会卡层。</summary>
-        internal static void NormalizeAfterSnapshot(int biomeDepth, bool atBoundary)
+        /// rewriteBiome=false 时不改写 biome。mp_rules 锁定与层深无关，始终执行。</summary>
+        internal static void NormalizeAfterSnapshot(int biomeDepth, bool rewriteBiome)
         {
             if (!MpSaveLocator.HasMpSave()) return;
             try
             {
-                if (!atBoundary)
+                if (rewriteBiome)
                 {
                     if (Directory.Exists(MpSaveLocator.MpSaveDir))
                     {

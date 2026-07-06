@@ -7,7 +7,9 @@ namespace CasualtiesUnknown.SaveManager
     [HarmonyPatch(typeof(SaveSystem), "SaveGame")]
     internal static class SaveGamePersistPositionPatch
     {
+        // Priority.Last：在其他 mod 的 SaveGame postfix 之后执行，确保读到最终的 biomeDepth。
         [HarmonyPostfix]
+        [HarmonyPriority(Priority.Last)]
         private static void Postfix()
         {
             try { new SaveStore().PersistCurrentSaveForContinue(); }

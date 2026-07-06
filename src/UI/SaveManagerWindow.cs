@@ -305,8 +305,6 @@ namespace CasualtiesUnknown.SaveManager
             }
         }
 
-        private Vector2 _externalScroll;
-
         // —— 设置页 —— //
 
         private Vector2 _settingsScroll;

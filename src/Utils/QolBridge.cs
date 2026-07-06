@@ -121,8 +121,7 @@ namespace CasualtiesUnknown.SaveManager
             }
         }
 
-        /// <summary>读 QoL.SeedManager 当前状态写到 sidecar；CurrentSeed 为 0 时回落用当前 save.sv 的 FNV-1a hash，
-        /// 与 QoL.SeedManager.GetDeterministicSeedFromSaveFile 等价，保证 sidecar 永远有非零 seed 可在回档时写回。</summary>
+        /// <summary>读 QoL.SeedManager 当前实时种子；为 0 时回落到本 mod sidecar 已记录的稳定种子。</summary>
         internal static void ReadCurrentSeed(out int seed, out string input)
         {
             TryResolve();
@@ -136,7 +135,12 @@ namespace CasualtiesUnknown.SaveManager
             catch { }
             if (seed == 0)
             {
-                seed = ComputeDeterministicSeedFromSaveFile(SaveStore.GameSavePath);
+                var sc = SlotSidecar.LoadOrEmpty(SaveStore.GameSavePath);
+                if (sc != null && sc.QolSeed != 0)
+                {
+                    seed = sc.QolSeed;
+                    input = string.IsNullOrEmpty(input) ? (sc.QolSeedInput ?? "") : input;
+                }
             }
         }
 

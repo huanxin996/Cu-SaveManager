@@ -88,18 +88,32 @@ namespace CasualtiesUnknown.SaveManager
             Current = WorldEngine.Qol;
         }
 
-        /// <summary>多人回档前按 sidecar 选定引擎准备。</summary>
+        /// <summary>多人回档前按 sidecar 选定引擎准备：self/qol 引擎把 sidecar 记录的种子钉进 QoL，
+        /// 使世界按记录种子复现；krok 引擎联机时由主机广播状态，无需钉入。</summary>
         internal static void PrepareMpRollback(SlotSidecar sidecar)
         {
             string engine = ResolveSidecarEngine(sidecar);
-            ModLog.Info($"多人回档引擎={engine} (sidecar.worldEngine='{sidecar?.WorldEngine}')");
+            int seed = sidecar?.QolSeed ?? 0;
+            string input = sidecar?.QolSeedInput ?? "";
+            ModLog.Info($"多人回档引擎={engine} seed={seed} (sidecar.worldEngine='{sidecar?.WorldEngine}' mpWorldEngine='{sidecar?.MpWorldEngine}')");
             if (engine == "krok")
             {
                 SeededWorldEngine.Deactivate();
+                QolBridge.DisableQolIntervention();
                 Current = WorldEngine.Krok;
                 return;
             }
-            Apply(WorldEngine.Self, sidecar?.QolSeed ?? 0, sidecar?.QolSeedInput ?? "");
+            if (engine == "qol")
+            {
+                // QoL 引擎：不激活 self，直接把 sidecar 种子钉回 QoL 让它用记录种子复现世界。
+                SeededWorldEngine.Deactivate();
+                Current = WorldEngine.Qol;
+                QolBridge.PrepareRollback(sidecar);
+                return;
+            }
+            // self 引擎：Apply 内会先清零 QoL 种子，须在其后再 PrepareRollback 钉入，顺序不可调换。
+            Apply(WorldEngine.Self, seed, input);
+            QolBridge.PrepareRollback(sidecar);
         }
 
         private static string ResolveSidecarEngine(SlotSidecar sidecar)

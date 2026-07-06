@@ -379,12 +379,14 @@ namespace CasualtiesUnknown.SaveManager
 
         private void PersistCurrentSaveForContinue(GameContext ctx)
         {
-            if (ShouldUseMpSave()) return;
+            if (ShouldUseMpSave())
+            {
+                PersistMpLocalPlayerSeed(ctx);
+                return;
+            }
             if (!File.Exists(GameSavePath)) return;
-            // 游戏以「存档→读档」推进层：SaveGame 写 biome=biomeDepth+1，TryLoadGame 读回。
-            // 层底保存即「进下一层」，必须保留游戏写入的 biomeDepth+1，否则读档回原层＝卡层；
-            // 仅层中保存才把 biome 规范回当前层以便原位续玩。
-            if (!IsPlayerAtLayerBoundary())
+            // QoL 在场时不改写 save.sv 的 biome；无 QoL 时层底保留 +1（进下一层），层中规范回当前层。
+            if (!QolBridge.IsQolPresent() && !IsPlayerAtLayerBoundary())
                 NormalizeSaveBiome(GameSavePath, ctx.Biome);
             PersistCurrentSaveSidecar(BuildSidecar(ctx, "", isAuto: false));
         }
@@ -393,6 +395,48 @@ namespace CasualtiesUnknown.SaveManager
         {
             if (sidecar == null || ShouldUseMpSave()) return;
             sidecar.Save(GameSavePath);
+        }
+
+        /// <summary>多人续玩种子持久化：把当前 run 种子/引擎写进本地玩家存档 mp_save/&lt;id&gt;/save.sv
+        /// 旁的 sidecar(.sv.json)，整局只「首存」一次（已有非零种子不覆盖），供离线续玩时还原世界。
+        /// save.sv 仅在落盘瞬间存在，缺失则跳过，后续保存补上。单人路径不进入此分支。</summary>
+        private static void PersistMpLocalPlayerSeed(GameContext ctx)
+        {
+            try
+            {
+                string sv = MpSaveLocator.ResolveLocalPlayerSavePath();
+                if (string.IsNullOrEmpty(sv) || !File.Exists(sv))
+                {
+                    ModLog.Info("多人续玩种子持久化跳过：本地玩家 save.sv 暂不存在（KrokMP 未落盘）");
+                    return;
+                }
+                var sc = SlotSidecar.LoadOrEmpty(sv);
+                bool firstSeed = sc.QolSeed == 0 && ctx.QolSeed != 0;
+                if (firstSeed)
+                {
+                    sc.QolSeed = ctx.QolSeed;
+                    sc.QolSeedInput = ctx.QolSeedInput ?? "";
+                }
+                if (string.IsNullOrEmpty(sc.WorldEngine)) sc.WorldEngine = ctx.WorldEngine;
+                sc.MpWorldEngine = ctx.WorldEngine;
+                sc.IsMultiplayer = true;
+                if (sc.RunId == 0) sc.RunId = ctx.RunId;
+                sc.Biome = ctx.Biome;
+                sc.HasPlayerPos = ctx.HasPlayerPos;
+                sc.PlayerX = ctx.PlayerX;
+                sc.PlayerY = ctx.PlayerY;
+                sc.PosMode = WorldEngineArbiter.PositionMode;
+                sc.FixedX = WorldEngineArbiter.FixedX;
+                sc.FixedY = WorldEngineArbiter.FixedY;
+                sc.ActiveLayerModifierIndex = ctx.ActiveLayerModifierIndex;
+                sc.LastPlayedAtUnixMs = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                sc.Save(sv);
+                ModLog.Info($"多人续玩种子持久化：path={sv} seed={sc.QolSeed} engine={sc.WorldEngine} firstSeed={firstSeed}");
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warning($"PersistMpLocalPlayerSeed 失败：{ex.Message}");
+            }
         }
 
         private static SlotSidecar BuildFallbackCurrentSaveSidecar()
@@ -650,7 +694,11 @@ namespace CasualtiesUnknown.SaveManager
                 ModLog.Info($"存档层数：path={sv} biomeDepth={depth} totalTraveled={traveled} rawBiome={ReadBiomeFromSv(sv)} liveDepth={WorldGeneration.world?.biomeDepth}");
             }
             if (ShouldUseMpSave())
-                MpSaveLayerHelper.NormalizeAfterSnapshot(ctx.Biome, IsPlayerAtLayerBoundary());
+            {
+                // QoL 在场或玩家在层底时不改写 biome；mp_rules 锁定与层深无关，始终执行。
+                bool rewriteBiome = !QolBridge.IsQolPresent() && !IsPlayerAtLayerBoundary();
+                MpSaveLayerHelper.NormalizeAfterSnapshot(ctx.Biome, rewriteBiome);
+            }
             return ctx;
         }
 
