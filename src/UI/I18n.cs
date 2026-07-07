@@ -145,6 +145,7 @@ namespace CasualtiesUnknown.SaveManager
             ["btn.filter_all_active"] = "[全部]",
             ["btn.rollback"] = "回档",
             ["msg.no_rollback_targets"] = "  没有可回档的槽位。请在游戏中保存或开启自动备份。",
+            ["msg.run_id_unresolved_mixed"] = "  警告：当前冒险身份未解析，下方列表可能混有其他冒险的备份；回档到其他冒险会进入不同世界。",
             ["msg.no_rollback_targets_filtered"] = "  当前日期筛选下没有槽位。",
             // 业务 / 提示
             ["fmt.saved_to"] = "已保存：{0}（来源 {1}）",
@@ -286,6 +287,7 @@ namespace CasualtiesUnknown.SaveManager
             ["btn.filter_all_active"] = "[All]",
             ["btn.rollback"] = "Roll back",
             ["msg.no_rollback_targets"] = "  No rollback targets. Save in-game or enable auto backup.",
+            ["msg.run_id_unresolved_mixed"] = "  Warning: current run identity unresolved; the list may include backups from other runs. Rolling back to another run loads a different world.",
             ["msg.no_rollback_targets_filtered"] = "  No slots match the current date filter.",
             ["fmt.saved_to"] = "Saved: {0} (from {1})",
             ["fmt.save_failed"] = "Save failed: {0}",

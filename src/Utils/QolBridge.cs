@@ -164,6 +164,23 @@ namespace CasualtiesUnknown.SaveManager
             catch { return 0; }
         }
 
+        /// <summary>把种子钉进 QoL：CurrentSeed/InputString + IsSeeded=true。QoL 不在场或 seed=0 时静默跳过。</summary>
+        internal static void PinSeed(int seed, string input)
+        {
+            TryResolve();
+            if (!_qolPresent || seed == 0) return;
+            try
+            {
+                _fSeedCurrentSeed?.SetValue(null, seed);
+                _fSeedInputString?.SetValue(null, input ?? "");
+                _fSeedIsSeeded?.SetValue(null, true);
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warning($"QolBridge.PinSeed 失败：{ex.Message}");
+            }
+        }
+
         /// <summary>把回档目标的玩家位置 + 种子推给 QoL。回档完成后 QoL 的 TryLoadGame postfix 自动塞回 body.transform.position。</summary>
         internal static void PrepareRollback(SlotSidecar sidecar)
         {

@@ -222,8 +222,10 @@ namespace CasualtiesUnknown.SaveManager
             }
             File.Copy(slotFullPath, game, overwrite: true);
             NormalizeSaveBiome(game, sidecar.Biome);
-            PersistCurrentSaveSidecar(sidecar);
+            InvalidateRunIdCache();
+            // 先 PrepareWorldForSlot：qol 引擎可能补记 sidecar.QolSeed，之后再持久化
             PrepareWorldForSlot(sidecar);
+            PersistCurrentSaveSidecar(sidecar);
         }
 
         /// <summary>多人槽位还原：仅主机可执行——可选备份当前 mp_save，解包目标 zip 回 mp_save，再触发主机重新加载。</summary>
@@ -338,6 +340,18 @@ namespace CasualtiesUnknown.SaveManager
                 {
                     ModLog.Warning("该存档由 QoL 引擎生成，但当前未检测到 QoL，世界可能不一致");
                 }
+                // 种子为空时按 QoL 同源规则（save.sv 字节 FNV hash）补记，
+                // 与 QoL EnsureNonZeroSeedForLoadedRun 的兼底值一致，保证回档世界可复现。
+                if (sidecar.QolSeed == 0 && string.IsNullOrEmpty(sidecar.QolSeedInput))
+                {
+                    string sv = sidecar.IsMultiplayer ? MpSaveLocator.ResolveLocalPlayerSavePath() : GameSavePath;
+                    int seed = QolBridge.ComputeDeterministicSeedFromSaveFile(sv);
+                    if (seed != 0)
+                    {
+                        sidecar.QolSeed = seed;
+                        ModLog.Info($"回档种子补记：sidecar 无种子，用存档 hash 补记 seed={seed}");
+                    }
+                }
                 WorldEngineArbiter.Apply(WorldEngine.Qol, sidecar.QolSeed, sidecar.QolSeedInput);
                 QolBridge.PrepareRollback(sidecar);
             }
@@ -360,8 +374,9 @@ namespace CasualtiesUnknown.SaveManager
 
             // 不在此处改写 biome：save.sv 的 biome 由存档时刻按是否在层底写定（层底=进下一层，保留 biomeDepth+1；
             // 层中=原位续玩，已规范回当前层）。主菜单 Continue 时拿不到场内玩家位置，重复规范会把进层用的 biomeDepth+1 改回当前层=卡层。
-            PersistCurrentSaveSidecar(sidecar);
+            InvalidateRunIdCache();
             PrepareWorldForSlot(sidecar);
+            PersistCurrentSaveSidecar(sidecar);
         }
 
         private static Vector3? ResolveSpawnPosition(SlotSidecar sidecar)
@@ -575,7 +590,9 @@ namespace CasualtiesUnknown.SaveManager
                 {
                     int v = ParseIntField(json, "\"cId\":");
                     if (v != 0) return v;
-                    ModLog.Info($"ReadRunIdFromSv: {Path.GetFileName(fullPath)} body cId=0，尝试 mp_rules.json fallback");
+                    // 同一文件只报一次，UI 逐帧重查时不刷屏
+                    if (_cidZeroLogged.Add(fullPath))
+                        ModLog.Info($"ReadRunIdFromSv: {Path.GetFileName(fullPath)} body cId=0，尝试 mp_rules.json fallback");
                 }
                 else
                 {
@@ -692,6 +709,19 @@ namespace CasualtiesUnknown.SaveManager
                 ctx.Biome = depth;
                 int traveled = MpSaveLayerHelper.ReadTotalTraveledFromSv(sv);
                 ModLog.Info($"存档层数：path={sv} biomeDepth={depth} totalTraveled={traveled} rawBiome={ReadBiomeFromSv(sv)} liveDepth={WorldGeneration.world?.biomeDepth}");
+                // qol 引擎下实时种子为 0（世界未经本模组钩子播种）时，按 QoL 同源规则
+                // 用 save.sv hash 补记并钉回 QoL，保证之后回档/续玩世界可复现。
+                if (!ShouldUseMpSave() && ctx.QolSeed == 0 && ctx.WorldEngine == "qol")
+                {
+                    int seed = QolBridge.ComputeDeterministicSeedFromSaveFile(sv);
+                    if (seed != 0)
+                    {
+                        ctx.QolSeed = seed;
+                        ctx.QolSeedInput = "";
+                        QolBridge.PinSeed(seed, "");
+                        ModLog.Info($"备份种子补记：QoL 实时种子为 0，用 save.sv hash 补记并钉回 seed={seed}");
+                    }
+                }
             }
             if (ShouldUseMpSave())
             {
@@ -753,6 +783,21 @@ namespace CasualtiesUnknown.SaveManager
             return json.Substring(0, start) + value.ToString() + json.Substring(end);
         }
 
+        // runId 会话级缓存：UI 每帧调用，避免逐帧文件 IO。非零结果长期有效，
+        // 零结果按 TTL 重探；世界生成/回档/续玩准备时主动失效。
+        private static int _cachedRunId;
+        private static bool _runIdCacheValid;
+        private static float _runIdRetryAt;
+        private const float RunIdRetryIntervalSec = 5f;
+        private static int _lastLoggedRunId = int.MinValue;
+        private static readonly HashSet<string> _cidZeroLogged = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        internal static void InvalidateRunIdCache()
+        {
+            _runIdCacheValid = false;
+            _runIdRetryAt = 0f;
+        }
+
         internal static int ComputeCurrentRunId()
         {
             // 1) 内存：游戏在 TryLoadGame / 新开 run 时维护 WoundView.view.cInfo[2]
@@ -762,7 +807,12 @@ namespace CasualtiesUnknown.SaveManager
                 if (view != null && view.cInfo != null && view.cInfo.Length >= 3)
                 {
                     int v = view.cInfo[2];
-                    if (v != 0) return v;
+                    if (v != 0)
+                    {
+                        _cachedRunId = v;
+                        _runIdCacheValid = true;
+                        return v;
+                    }
                 }
             }
             catch (Exception ex)
@@ -770,6 +820,18 @@ namespace CasualtiesUnknown.SaveManager
                 ModLog.Warning($"ComputeCurrentRunId: 读 WoundView.cInfo[2] 异常 {ex.Message}");
             }
 
+            if (_runIdCacheValid && (_cachedRunId != 0 || Time.realtimeSinceStartup < _runIdRetryAt))
+                return _cachedRunId;
+
+            int resolved = ResolveRunIdFromFiles();
+            _cachedRunId = resolved;
+            _runIdCacheValid = true;
+            _runIdRetryAt = Time.realtimeSinceStartup + RunIdRetryIntervalSec;
+            return resolved;
+        }
+
+        private static int ResolveRunIdFromFiles()
+        {
             // 2) 候选 .sv 文件：先单机/多人 save.sv，再 autosave.sv（save.sv 有时 cId=0 但 autosave.sv 已有真值）
             string p = Application.persistentDataPath;
             string[] candidates = new[]
@@ -785,11 +847,30 @@ namespace CasualtiesUnknown.SaveManager
                 int v = ReadRunIdFromSv(path);
                 if (v != 0)
                 {
-                    ModLog.Info($"ComputeCurrentRunId: 通过 {Path.GetFileName(path)} 解出 runId={v}");
+                    if (_lastLoggedRunId != v)
+                    {
+                        _lastLoggedRunId = v;
+                        ModLog.Info($"ComputeCurrentRunId: 通过 {Path.GetFileName(path)} 解出 runId={v}");
+                    }
                     return v;
                 }
             }
-            ModLog.Warning("ComputeCurrentRunId: 所有候选 .sv 都解不出 runId，返回 0");
+            // 3) 当前存档 sidecar：游戏 TryLoadGame 结束会删 save.sv，但 save.sv.json 仍在，记录着本 run 的 runId
+            int sc = SlotSidecar.LoadOrEmpty(GameSavePath).RunId;
+            if (sc != 0)
+            {
+                if (_lastLoggedRunId != sc)
+                {
+                    _lastLoggedRunId = sc;
+                    ModLog.Info($"ComputeCurrentRunId: 通过 save.sv.json sidecar 解出 runId={sc}");
+                }
+                return sc;
+            }
+            if (_lastLoggedRunId != 0)
+            {
+                _lastLoggedRunId = 0;
+                ModLog.Warning("ComputeCurrentRunId: 所有候选 .sv 与 sidecar 都解不出 runId，返回 0");
+            }
             return 0;
         }
 

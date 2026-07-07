@@ -1,4 +1,4 @@
-# CuSaveManager V1.1.7 for Casualties: Unknown
+# CuSaveManager V1.1.8 for Casualties: Unknown
 
 > Multi-save, death rollback, and deterministic world mod for Casualties: Unknown
 > Compatible with: KrokMP multiplayer, QoL Unknown (their absence does not break core features)

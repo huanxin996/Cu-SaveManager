@@ -150,6 +150,7 @@ namespace CasualtiesUnknown.SaveManager
             MpWorldSeedInjector.TryPatch();
             MpSeedBroadcast.TryPatch();
             LayerUnlockSeedPatcher.TryPatch();
+            SaveStore.InvalidateRunIdCache();
             if (!SaveSystem.loadedRun) WorldEngineArbiter.ApplyForFreshRun();
             ModLog.Info($"世界生成开始：loadedRun={SaveSystem.loadedRun} engine={WorldEngineArbiter.Current} effective={WorldEngineArbiter.ResolveEffectiveEngineName()} selfActive={SeededWorldEngine.IsActive} seed={SeededWorldEngine.CurrentSeed} layerSeed={SeededWorldEngine.LayerSeed()}");
         }

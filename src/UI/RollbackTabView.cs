@@ -38,6 +38,11 @@ namespace CasualtiesUnknown.SaveManager
 
             int limit = Mathf.Max(1, _cfg.RecentSlotsLimit.Value);
             int currentRunId = SaveStore.ComputeCurrentRunId();
+            if (currentRunId == 0)
+            {
+                GUILayout.Label(I18n.T("msg.run_id_unresolved_mixed"), BlackWhiteSkin.CardStyle);
+                GUILayout.Space(4f);
+            }
             // ListSlots 已按 LastWriteTimeUtc 倒序，第一项即最新
             var slots = _store.ListSlots();
             int shown = 0;
