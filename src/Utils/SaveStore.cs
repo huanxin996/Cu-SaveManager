@@ -400,10 +400,21 @@ namespace CasualtiesUnknown.SaveManager
                 return;
             }
             if (!File.Exists(GameSavePath)) return;
+            // 层底保存时 save.sv 的 biome 保留 +1（读档进下一层）。此时玩家坐标是当前层层底，
+            // 若还原会把人塞到下一层底部＝跳过整层探索；层底一律不记录坐标，交给游戏原版顶部出生点。
+            if (IsPlayerAtLayerBoundary()) ClearPlayerPos(ref ctx);
             // QoL 在场时不改写 save.sv 的 biome；无 QoL 时层底保留 +1（进下一层），层中规范回当前层。
             if (!QolBridge.IsQolPresent() && !IsPlayerAtLayerBoundary())
                 NormalizeSaveBiome(GameSavePath, ctx.Biome);
             PersistCurrentSaveSidecar(BuildSidecar(ctx, "", isAuto: false));
+        }
+
+        /// <summary>清掉上下文里的玩家坐标，让续玩/回档走游戏原版出生点（层底进层时防跳层）。</summary>
+        private static void ClearPlayerPos(ref GameContext ctx)
+        {
+            ctx.HasPlayerPos = false;
+            ctx.PlayerX = 0f;
+            ctx.PlayerY = 0f;
         }
 
         private static void PersistCurrentSaveSidecar(SlotSidecar sidecar)
@@ -437,6 +448,8 @@ namespace CasualtiesUnknown.SaveManager
                 sc.IsMultiplayer = true;
                 if (sc.RunId == 0) sc.RunId = ctx.RunId;
                 sc.Biome = ctx.Biome;
+                // 层底进层时不记录坐标，避免续玩/回档把人塞到下一层底部＝跳层（同单人路径）。
+                if (IsPlayerAtLayerBoundary()) ClearPlayerPos(ref ctx);
                 sc.HasPlayerPos = ctx.HasPlayerPos;
                 sc.PlayerX = ctx.PlayerX;
                 sc.PlayerY = ctx.PlayerY;

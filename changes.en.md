@@ -2,6 +2,14 @@
 
 > 中文更新日志：见 [changes.md](changes.md)
 
+## 1.1.8 & 1.1.9
+
+Fixed "Save & Exit" not creating a slot in the save / rollback list.
+
+## 1.1.7
+
+Fixed loading a save made at a layer bottom (when the "Go to Next Floor" button is showing) skipping an entire floor.
+
 ## 1.1.6
 
 **Fixed the layer number not advancing (single-player / KrokMP-installed solo).**

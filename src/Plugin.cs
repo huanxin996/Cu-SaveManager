@@ -15,7 +15,7 @@ namespace CasualtiesUnknown.SaveManager
     {
         private const string PluginGuid = "com.casualtiesUnknown.saveManager";
         private const string PluginName = "CuSaveManager";
-        internal const string PluginVersion = "1.1.8";
+        internal const string PluginVersion = "1.1.9";
 
         private static ManualLogSource _log;
         private static Plugin _instance;
@@ -228,6 +228,7 @@ namespace CasualtiesUnknown.SaveManager
                         SetMessage(I18n.T("msg.save_exit_unavailable"));
                         return;
                     }
+                    _store.SaveManual(I18n.T("lbl.save_exit_alias"));
                     _window.ClosePanel();
                     PlayerCamera.main.ToMainMenu();
                     SetMessage(I18n.T("msg.save_exit_mp_done"));
@@ -240,7 +241,7 @@ namespace CasualtiesUnknown.SaveManager
                     return;
                 }
 
-                _store.PersistCurrentSaveForContinue();
+                _store.SaveManual(I18n.T("lbl.save_exit_alias"));
                 _window.ClosePanel();
                 PlayerCamera.main.ToMainMenu();
                 SetMessage(I18n.T("msg.save_exit_done"));

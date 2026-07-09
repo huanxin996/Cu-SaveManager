@@ -171,6 +171,7 @@ namespace CasualtiesUnknown.SaveManager
             ["msg.rollback_target_missing"] = "目标槽位不存在或已损坏",
             ["msg.user_cancel"] = "用户取消",
             ["lbl.before_load_alias"] = "切回前自动备份",
+            ["lbl.save_exit_alias"] = "存档并退出",
         };
 
         private static readonly Dictionary<string, string> _en = new Dictionary<string, string>
@@ -312,6 +313,7 @@ namespace CasualtiesUnknown.SaveManager
             ["msg.rollback_target_missing"] = "Target slot missing or corrupted",
             ["msg.user_cancel"] = "User canceled",
             ["lbl.before_load_alias"] = "Auto backup before restore",
+            ["lbl.save_exit_alias"] = "Save & exit",
         };
 
         /// <summary>当前语言判定：支持自定义中文包名称关键词，并允许配置强制切换 zh/en。</summary>
