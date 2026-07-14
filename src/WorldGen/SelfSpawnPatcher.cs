@@ -121,7 +121,7 @@ namespace CasualtiesUnknown.SaveManager
             if (!IsPlayerStandLocationValid(x, y)) MovePlayerToNearestOpenLandIfEmbedded();
         }
 
-        private static void RemoveNearbyTrapsLikeVanilla()
+        internal static void RemoveNearbyTrapsLikeVanilla()
         {
             if (PlayerCamera.main == null || PlayerCamera.main.body == null) return;
             Vector2 origin = PlayerCamera.main.body.transform.position;
@@ -130,6 +130,8 @@ namespace CasualtiesUnknown.SaveManager
             foreach (var t in all)
             {
                 if (t == null || t.gameObject == null || !IsTrapObject(t.gameObject)) continue;
+                // 世界撒布的陷阱实体没有父物体；有父物体的是玩家手持/穿戴/容器内的同名物品（如抗辐射药），不清理
+                if (t.parent != null) continue;
                 Vector2 d = (Vector2)t.position - origin;
                 bool near = d.sqrMagnitude <= sqrRadius;
                 bool aboveFloor = t.position.y > origin.y - 5f;

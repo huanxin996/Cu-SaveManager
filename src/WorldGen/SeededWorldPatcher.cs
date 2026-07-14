@@ -147,6 +147,7 @@ namespace CasualtiesUnknown.SaveManager
         private static void Start_Prefix()
         {
             QolSpawnSuppressor.TryPatch();
+            QolTrapClearGuard.TryPatch();
             MpWorldSeedInjector.TryPatch();
             MpSeedBroadcast.TryPatch();
             LayerUnlockSeedPatcher.TryPatch();

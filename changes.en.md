@@ -2,6 +2,12 @@
 
 > 中文更新日志：见 [changes.md](changes.md)
 
+## 1.2.0
+
+Fixed anti-rad drugs (and other trap-named items) carried in the inventory always disappearing when entering the next layer.
+
+Fixed items in oversized custom containers (e.g. Super Galaxy Belt / Material Pouch) being lost or scattered on the ground after loading a save.
+
 ## 1.1.8 & 1.1.9
 
 Fixed "Save & Exit" not creating a slot in the save / rollback list.
