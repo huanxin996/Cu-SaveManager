@@ -48,7 +48,7 @@ namespace CasualtiesUnknown.SaveManager
             if (positions.Count == 0)
                 ModLog.Warning("多人回档：mp_rules 无 PLRPOS，仅尝试 sidecar 主机坐标");
 
-            if (sidecar != null)
+            if (sidecar != null && !MultiplayerBridge.IsDedicatedServer())
             {
                 var hostPos = ResolveHostPosition(sidecar);
                 if (hostPos.HasValue)
@@ -64,6 +64,10 @@ namespace CasualtiesUnknown.SaveManager
                         ModLog.Info($"多人回档：sidecar 覆盖主机 {hostId} ({hostPos.Value.x:0.0},{hostPos.Value.y:0.0})");
                     }
                 }
+            }
+            else if (MultiplayerBridge.IsDedicatedServer())
+            {
+                ModLog.Info("多人回档：Dedicated Server跳过sidecar主机坐标");
             }
 
             if (positions.Count == 0)
