@@ -142,6 +142,27 @@ namespace CasualtiesUnknown.SaveManager
             return _mIsServer != null && ReadStaticBool(_mIsServer);
         }
 
+        internal static bool IsDedicatedServer()
+        {
+            TryResolve();
+            if (_krokAssembly == null) return false;
+
+            try
+            {
+                Type tNet = _krokAssembly.GetType("KrokoshaCasualtiesMP.Net");
+                MemberInfo mDedicated = tNet.GetProperty("is_dedicated_server", AnyStatic);
+
+                if (mDedicated != null)
+                    return ReadStaticBool(mDedicated);
+            }
+            catch (Exception ex)
+            {
+                ModLog.Warning($"获取 dedicated 状态失败：{ex.Message}");
+            }
+
+            return false;
+        }
+
         internal static Assembly GetKrokAssembly()
         {
             TryResolve();
